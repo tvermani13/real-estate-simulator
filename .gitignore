@@ -1,0 +1,49 @@
+# === OS / Editor ===
+.DS_Store
+.idea/
+.vscode/
+
+# === Python (backend) ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# virtualenvs
+.venv/
+venv/
+ENV/
+env/
+
+# === Node / Next.js (frontend) ===
+node_modules/
+.next/
+out/
+build/
+coverage/
+.vercel/
+
+# package managers / logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# === Env / secrets ===
+.env
+.env.*
+!.env.example
+
