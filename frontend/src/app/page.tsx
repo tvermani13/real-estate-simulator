@@ -15,6 +15,7 @@ import {
 } from "recharts";
 
 import { Field } from "@/components/Field";
+import { InstructionsModal } from "@/components/InstructionsModal";
 import { api, type MacroResponse, type RiskResponse, type ScenarioAResponse, type ScenarioBResponse } from "@/lib/api";
 import { clamp, formatCurrency, formatPct } from "@/lib/format";
 import { useElementSize } from "@/lib/useElementSize";
@@ -58,6 +59,7 @@ function Badge({
 export default function Home() {
   const [macro, setMacro] = useState<MacroResponse | null>(null);
   const [macroErr, setMacroErr] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // Inputs (sane defaults so UI renders immediately).
   const [portfolioValue, setPortfolioValue] = useState(1_000_000);
@@ -230,6 +232,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
+      <InstructionsModal open={showInstructions} onClose={() => setShowInstructions(false)} />
       <div className="border-b border-zinc-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between gap-4">
           <div>
@@ -237,6 +240,12 @@ export default function Home() {
             <div className="text-xs text-zinc-500">Sell equities vs borrow against portfolio (cashflow + risk)</div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-50"
+              onClick={() => setShowInstructions(true)}
+            >
+              How to use
+            </button>
             {macroErr ? <Badge tone="red">Macro error</Badge> : <Badge tone="zinc">Macro: {macro?.source ?? "…"}</Badge>}
             <div className="text-xs text-zinc-700">
               SOFR: <span className="font-semibold">{macro?.sofr.value ? formatPct(macro.sofr.value, 2) : "—"}</span>
