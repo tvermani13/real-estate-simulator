@@ -146,6 +146,32 @@ After editing `backend/.env`, restart the service:
 sudo systemctl restart sbloc-backend
 ```
 
+#### 6) Updating the backend after code changes
+
+If you make backend changes on another machine (e.g. your laptop) and push them to GitHub, you must pull those changes onto the host and restart the service.
+
+From the repository directory on the host:
+
+```bash
+git pull
+```
+
+Then:
+
+- If you changed Python code under `backend/app/**`:
+
+```bash
+sudo systemctl restart sbloc-backend
+```
+
+- If you changed dependencies (`backend/requirements.txt`):
+
+```bash
+source /path/to/repo/.venv/bin/activate
+pip install -r backend/requirements.txt
+sudo systemctl restart sbloc-backend
+```
+
 ### Frontend deployment (Vercel)
 
 1. Import the repo into Vercel.
