@@ -35,13 +35,12 @@ def estimate_gross_sale_for_net_cash(
         )
 
     wab = weighted_average_cost_basis_pct
-    if wab <= 0 or wab > 1:
-        raise ValueError("weighted_average_cost_basis_pct must be in (0, 1].")
+    if wab < 0 or wab > 1:
+        raise ValueError("weighted_average_cost_basis_pct must be in [0, 1].")
     if capital_gains_tax_rate < 0 or capital_gains_tax_rate >= 1:
         raise ValueError("capital_gains_tax_rate must be in [0, 1).")
 
     gain_fraction = 1.0 - wab
-    # net = gross - tax_rate * gains = gross - tax_rate * gross * gain_fraction
     effective_keep = 1.0 - capital_gains_tax_rate * gain_fraction
     if effective_keep <= 0:
         raise ValueError("Inputs imply non-positive net proceeds.")
