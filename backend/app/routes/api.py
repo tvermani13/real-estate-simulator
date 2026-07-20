@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.core.auth import CurrentUser
 from app.core.config import settings
 from app.engine.fred import fetch_latest_observation
 
@@ -29,7 +30,7 @@ def health() -> dict:
 
 
 @router.get("/macro")
-async def macro() -> dict:
+async def macro(_user: CurrentUser) -> dict:
     """
     Macro indicators used in the UI banner.
     If FRED_API_KEY isn't set, returns reasonable placeholders.
@@ -70,7 +71,7 @@ async def macro() -> dict:
 
 
 @router.post("/scenario-a")
-def scenario_a(req: ScenarioARequest) -> ScenarioAResponse:
+def scenario_a(req: ScenarioARequest, _user: CurrentUser) -> ScenarioAResponse:
     r = estimate_gross_sale_for_net_cash(
         net_cash_needed=req.deal.down_payment_required,
         weighted_average_cost_basis_pct=req.portfolio.weighted_average_cost_basis_pct,
@@ -90,7 +91,7 @@ def scenario_a(req: ScenarioARequest) -> ScenarioAResponse:
 
 
 @router.post("/scenario-b")
-def scenario_b(req: ScenarioBRequest) -> ScenarioBResponse:
+def scenario_b(req: ScenarioBRequest, _user: CurrentUser) -> ScenarioBResponse:
     base = compute_sbloc_cashflow(
         loan_amount=req.loan_amount,
         sofr_rate=req.sofr_rate,
@@ -129,7 +130,7 @@ def scenario_b(req: ScenarioBRequest) -> ScenarioBResponse:
 
 
 @router.post("/risk")
-def risk(req: RiskRequest) -> RiskResponse:
+def risk(req: RiskRequest, _user: CurrentUser) -> RiskResponse:
     danger_value = (
         req.loan_amount / req.maintenance_ltv_max if req.loan_amount > 0 else float("inf")
     )
@@ -154,4 +155,3 @@ def risk(req: RiskRequest) -> RiskResponse:
             )
         )
     return RiskResponse(danger_portfolio_value=float(danger_value), results=results)
-

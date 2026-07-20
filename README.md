@@ -1,9 +1,14 @@
-# Real Estate SBLOC Simulator
+# Hearthline Real Estate Planner
 
-Dashboard + API to evaluate funding a real estate down payment by:
+Hearthline is an authenticated property-planning product built around the original SBLOC simulator. It now supports:
 
-- Selling equities (capital gains + opportunity cost), vs
-- Borrowing via a Securities-Backed Line of Credit (SBLOC) (cashflow spread + margin call risk)
+- Email/password accounts with server-side sessions
+- Persisted household finances, liquidity, liabilities, risk tolerance, and financing assumptions
+- Separate primary-home and rental-investment buying ranges
+- Saved property scans and transparent per-listing scores
+- A RentCast-first listing provider with an automatic demo fallback until a key is configured
+- Optional SMTP email alerts for new qualifying matches
+- Named, saved versions of the original sell-stock vs. SBLOC model
 
 ## Repo layout
 
@@ -26,6 +31,13 @@ uvicorn app.main:app --reload --port 8000
 
 Then visit `http://localhost:8000/docs`.
 
+The SQLite database is created at `backend/data/real_estate_simulator.db` and is ignored by git. For a public HTTPS deployment with a frontend and backend on different sites, configure:
+
+```bash
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_SAMESITE=none
+```
+
 ### Frontend (Next.js)
 
 In another terminal:
@@ -37,6 +49,37 @@ npm run dev
 ```
 
 Visit `http://localhost:3000`.
+
+Create an account, enter household finances under **Finances**, and then create a scan under **Properties**.
+
+## Property data
+
+RentCast is the preferred provider. Until a key is configured, the app automatically uses clearly marked illustrative listings so the whole workflow can still be tested. To enable live sale listings and local rental comps:
+
+```bash
+PROPERTY_PROVIDER=rentcast
+RENTCAST_API_KEY=<your-key>
+```
+
+The integration uses RentCast's sale-listing endpoint and, for investment scans, a second rental-listing request to estimate market rent by property type and bedroom count. Fairfield County, Connecticut is the default launch market: the app runs a geographic radius query and then strictly filters the response to Fairfield County. Searches remain nationwide through city/state, ZIP code, or a street address with a configurable radius. It does not scrape Zillow or Redfin.
+
+## Notifications and scheduled scans
+
+Email is the initial alert channel. Set the `SMTP_*` variables in `backend/.env`, enable notifications on a saved scan, then schedule:
+
+```bash
+cd backend
+PYTHONPATH=. python -m app.jobs.scan_saved_searches
+```
+
+Run that command from cron, a systemd timer, or your deployment scheduler. Only saved scans with notifications enabled are processed. New listings are stored before email delivery, so a mail outage does not lose matches.
+
+## Verification
+
+```bash
+PYTHONPATH=backend python -m unittest discover -s backend/tests -v
+cd frontend && npm run lint && npm run build
+```
 
 ## Deployment (example: DGX Spark + Tailscale Funnel + Vercel)
 
@@ -189,4 +232,3 @@ Redeploy.
   - rate limiting / auth at an edge layer (or in-app),
   - monitoring/logging,
   - restricting inputs and compute limits (Monte Carlo runs) to prevent abuse.
-

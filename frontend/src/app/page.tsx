@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +15,12 @@ import {
 
 import { Field } from "@/components/Field";
 import { InstructionsModal } from "@/components/InstructionsModal";
-import { api, type MacroResponse, type RiskResponse, type ScenarioAResponse, type ScenarioBResponse } from "@/lib/api";
+import { AuthScreen } from "@/components/AuthScreen";
+import { DiscoverWorkspace } from "@/components/DiscoverWorkspace";
+import { OverviewWorkspace } from "@/components/OverviewWorkspace";
+import { ProfileWorkspace } from "@/components/ProfileWorkspace";
+import { AppHeader, LoadingBlock, type Workspace } from "@/components/ProductUI";
+import { ApiError, api, type MacroResponse, type RiskResponse, type SavedSimulation, type ScenarioAResponse, type ScenarioBResponse, type User } from "@/lib/api";
 import { clamp, formatCurrency, formatPct } from "@/lib/format";
 import { useElementSize } from "@/lib/useElementSize";
 
@@ -57,6 +61,8 @@ function Badge({
 }
 
 export default function Home() {
+  const [sessionUser, setSessionUser] = useState<User | null | undefined>(undefined);
+  const [workspace, setWorkspace] = useState<Workspace>("overview");
   const [macro, setMacro] = useState<MacroResponse | null>(null);
   const [macroErr, setMacroErr] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -77,6 +83,9 @@ export default function Home() {
   const [capGainsTaxRate, setCapGainsTaxRate] = useState(0.238);
   const [brokerSpread, setBrokerSpread] = useState(0.02);
   const [rateShockBps, setRateShockBps] = useState(0);
+  const [simulationName, setSimulationName] = useState("My property model");
+  const [savedSimulations, setSavedSimulations] = useState<SavedSimulation[]>([]);
+  const [simulationMessage, setSimulationMessage] = useState<string | null>(null);
 
   const loanAmount = downPayment;
   const sofr = macro?.sofr.value ?? 0.05;
@@ -109,6 +118,16 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    api.me()
+      .then((result) => setSessionUser(result.user))
+      .catch((caught: unknown) => {
+        if (caught instanceof ApiError && caught.status === 401) setSessionUser(null);
+        else setSessionUser(null);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!sessionUser) return;
     let cancelled = false;
     api
       .macro()
@@ -124,9 +143,15 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sessionUser]);
+
+  useEffect(() => {
+    if (!sessionUser || workspace !== "simulator") return;
+    api.simulations().then(setSavedSimulations).catch(() => setSavedSimulations([]));
+  }, [sessionUser, workspace]);
 
   async function recalc() {
+    if (!sessionUser) return;
     setIsLoading(true);
     setCalcErr(null);
     try {
@@ -159,9 +184,49 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!sessionUser) return;
     void recalc();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reqCommon, capGainsTaxRate, brokerSpread, rateShockBps]);
+  }, [sessionUser, reqCommon, capGainsTaxRate, brokerSpread, rateShockBps]);
+
+  async function logout() {
+    await api.logout().catch(() => undefined);
+    setSessionUser(null);
+    setWorkspace("overview");
+  }
+
+  async function saveCurrentSimulation() {
+    setSimulationMessage(null);
+    const saved = await api.saveSimulation({
+      name: simulationName,
+      inputs: {
+        portfolioValue, costBasisPct, volAnnual, muAnnual, maintenanceLtvMax,
+        purchasePrice, downPayment, rent, opex, appreciation,
+        capGainsTaxRate, brokerSpread, rateShockBps,
+      },
+    });
+    setSavedSimulations((current) => [saved, ...current]);
+    setSimulationMessage("Model saved");
+  }
+
+  function loadSimulation(saved: SavedSimulation) {
+    const value = saved.inputs;
+    setPortfolioValue(value.portfolioValue ?? portfolioValue);
+    setCostBasisPct(value.costBasisPct ?? costBasisPct);
+    setVolAnnual(value.volAnnual ?? volAnnual);
+    setMuAnnual(value.muAnnual ?? muAnnual);
+    setMaintenanceLtvMax(value.maintenanceLtvMax ?? maintenanceLtvMax);
+    setPurchasePrice(value.purchasePrice ?? purchasePrice);
+    setDownPayment(value.downPayment ?? downPayment);
+    setRent(value.rent ?? rent);
+    setOpex(value.opex ?? opex);
+    setAppreciation(value.appreciation ?? appreciation);
+    setCapGainsTaxRate(value.capGainsTaxRate ?? capGainsTaxRate);
+    setBrokerSpread(value.brokerSpread ?? brokerSpread);
+    setRateShockBps(value.rateShockBps ?? rateShockBps);
+    setSimulationName(saved.name);
+    setSimulationMessage(`Loaded ${saved.name}`);
+  }
 
   const baseAnnualRate = (b?.base.annual_rate ?? (shockedSofr + brokerSpread));
   const baseNetCashflow = b?.base.net_cashflow_monthly ?? (rent - opex - loanAmount * baseAnnualRate / 12);
@@ -230,8 +295,15 @@ export default function Home() {
     });
   }, [a, downPayment, portfolioValue, purchasePrice, loanAmount, baseAnnualRate, rent, opex, muAnnual, appreciation]);
 
+  if (sessionUser === undefined) return <main className="min-h-screen bg-[#f7f8f5]"><LoadingBlock label="Opening your workspace…" /></main>;
+  if (sessionUser === null) return <AuthScreen onAuthenticated={setSessionUser} />;
+  if (workspace === "overview") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><OverviewWorkspace onNavigate={setWorkspace} /></div>;
+  if (workspace === "profile") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><ProfileWorkspace /></div>;
+  if (workspace === "discover") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><DiscoverWorkspace user={sessionUser} /></div>;
+
   return (
     <div className="min-h-screen bg-zinc-50">
+      <AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} />
       <InstructionsModal open={showInstructions} onClose={() => setShowInstructions(false)} />
       <div className="border-b border-zinc-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between gap-4">
@@ -259,6 +331,25 @@ export default function Home() {
 
       <div className="mx-auto max-w-7xl px-4 py-6 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
         <div className="space-y-4">
+          <Card title="Saved models">
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input className="min-w-0 flex-1 rounded-md border border-zinc-200 px-3 py-2 text-xs" value={simulationName} onChange={(event) => setSimulationName(event.target.value)} />
+                <button className="rounded-md bg-zinc-900 px-3 py-2 text-xs font-semibold text-white" onClick={() => void saveCurrentSimulation()}>Save</button>
+              </div>
+              {simulationMessage ? <div className="text-xs text-emerald-700">{simulationMessage}</div> : null}
+              {savedSimulations.length ? (
+                <div className="space-y-1.5">
+                  {savedSimulations.slice(0, 5).map((saved) => (
+                    <button key={saved.id} className="flex w-full items-center justify-between rounded-md border border-zinc-200 px-3 py-2 text-left text-xs hover:bg-zinc-50" onClick={() => loadSimulation(saved)}>
+                      <span className="truncate font-medium text-zinc-800">{saved.name}</span>
+                      <span className="text-[10px] text-zinc-400">Load</span>
+                    </button>
+                  ))}
+                </div>
+              ) : <div className="text-xs leading-5 text-zinc-500">Save these portfolio, deal, and stress-test inputs to revisit them later.</div>}
+            </div>
+          </Card>
           <Card title="Portfolio inputs">
             <div className="grid grid-cols-1 gap-3">
               <Field label="Total portfolio value ($)" value={portfolioValue} step={1000} min={1} onChange={setPortfolioValue} />
