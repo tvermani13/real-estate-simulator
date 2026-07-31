@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import uuid4
@@ -72,10 +73,11 @@ def create_user(name: str, email: str, password: str) -> dict[str, str]:
                 "INSERT INTO users (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
                 (user_id, name.strip(), email.strip().lower(), hash_password(password), created_at),
             )
-    except Exception as exc:
-        if "UNIQUE constraint failed" in str(exc):
-            raise HTTPException(status_code=409, detail="An account with that email already exists") from exc
-        raise
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="An account with that email already exists",
+        ) from exc
     return {"id": user_id, "name": name.strip(), "email": email.strip().lower(), "created_at": created_at}
 
 

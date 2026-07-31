@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from fastapi import APIRouter
 
 from app.core.auth import CurrentUser
 from app.core.config import settings
+from app.core.database import database_readiness
 from app.engine.fred import fetch_latest_observation
 
 from app.engine.monte_carlo import margin_call_probability
@@ -22,11 +26,29 @@ from app.routes.models import (
 
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
 
 
 @router.get("/health")
 def health() -> dict:
-    return {"ok": True}
+    return {"ok": True, "version": settings.app_version}
+
+
+@router.get("/ready")
+def ready() -> dict:
+    return {
+        "ok": True,
+        "database": database_readiness(),
+        "property_provider_configured": bool(settings.rentcast_api_key),
+    }
+
+
+def _fallback_macro() -> dict:
+    return {
+        "sofr": {"series_id": settings.sofr_series_id, "date": None, "value": 0.05},
+        "effr": {"series_id": settings.effr_series_id, "date": None, "value": 0.053},
+        "source": "fallback",
+    }
 
 
 @router.get("/macro")
@@ -36,17 +58,20 @@ async def macro(_user: CurrentUser) -> dict:
     If FRED_API_KEY isn't set, returns reasonable placeholders.
     """
     if not settings.fred_api_key:
-        # Fallback values so UI works out-of-the-box.
-        sofr = {"series_id": settings.sofr_series_id, "date": None, "value": 0.05}
-        effr = {"series_id": settings.effr_series_id, "date": None, "value": 0.053}
-        return {"sofr": sofr, "effr": effr, "source": "fallback"}
+        return _fallback_macro()
 
-    sofr_latest = await fetch_latest_observation(
-        api_key=settings.fred_api_key, series_id=settings.sofr_series_id
-    )
-    effr_latest = await fetch_latest_observation(
-        api_key=settings.fred_api_key, series_id=settings.effr_series_id
-    )
+    try:
+        sofr_latest, effr_latest = await asyncio.gather(
+            fetch_latest_observation(
+                api_key=settings.fred_api_key, series_id=settings.sofr_series_id
+            ),
+            fetch_latest_observation(
+                api_key=settings.fred_api_key, series_id=settings.effr_series_id
+            ),
+        )
+    except Exception:
+        logger.exception("FRED refresh failed; serving fallback macro rates")
+        return _fallback_macro()
 
     def normalize_rate(v: float | None) -> float | None:
         # FRED commonly reports rates in percent (e.g. 5.33 means 5.33%).
@@ -131,9 +156,7 @@ def scenario_b(req: ScenarioBRequest, _user: CurrentUser) -> ScenarioBResponse:
 
 @router.post("/risk")
 def risk(req: RiskRequest, _user: CurrentUser) -> RiskResponse:
-    danger_value = (
-        req.loan_amount / req.maintenance_ltv_max if req.loan_amount > 0 else float("inf")
-    )
+    danger_value = req.loan_amount / req.maintenance_ltv_max if req.loan_amount > 0 else 0.0
     results: list[RiskHorizonResult] = []
     for horizon in req.horizons_months:
         r = margin_call_probability(
@@ -151,7 +174,9 @@ def risk(req: RiskRequest, _user: CurrentUser) -> RiskResponse:
                 breach_probability=r.breach_probability,
                 breach_count=r.breach_count,
                 runs=r.runs,
-                ending_values=r.ending_values,
+                ending_value_sample=r.ending_value_sample,
+                ending_value_percentiles=r.ending_value_percentiles,
+                sample_size=len(r.ending_value_sample),
             )
         )
     return RiskResponse(danger_portfolio_value=float(danger_value), results=results)

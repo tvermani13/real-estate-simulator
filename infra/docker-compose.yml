@@ -1,0 +1,182 @@
+name: hearthline
+
+services:
+  backend:
+    image: hearthline-backend:${HEARTHLINE_VERSION:-0.2.0}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: ../backend/.env
+        required: false
+    environment:
+      APP_VERSION: ${HEARTHLINE_VERSION:-0.2.0}
+      ENVIRONMENT: ${HEARTHLINE_ENVIRONMENT:-production}
+      CORS_ALLOW_ORIGINS: ${HEARTHLINE_ORIGIN:-http://127.0.0.1:3080}
+      DATABASE_PATH: /data/real_estate_simulator.db
+      SESSION_COOKIE_SECURE: ${HEARTHLINE_SESSION_COOKIE_SECURE:-false}
+      SESSION_COOKIE_SAMESITE: lax
+      REGISTRATION_ENABLED: ${HEARTHLINE_REGISTRATION_ENABLED:-true}
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_TRUST_PROXY_HEADERS: "true"
+      NVIDIA_VISIBLE_DEVICES: void
+    expose:
+      - "8000"
+    volumes:
+      - hearthline_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    cpus: "2.0"
+    mem_limit: 2g
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    image: hearthline-frontend:${HEARTHLINE_VERSION:-0.2.0}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ""
+    restart: unless-stopped
+    init: true
+    environment:
+      NVIDIA_VISIBLE_DEVICES: void
+    expose:
+      - "3000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+      - /app/.next/cache:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    cpus: "1.5"
+    mem_limit: 1g
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  gateway:
+    image: caddy:2.10.0-alpine
+    restart: unless-stopped
+    init: true
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    ports:
+      - "127.0.0.1:${HEARTHLINE_PORT:-3080}:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    read_only: true
+    tmpfs:
+      - /config:size=16m,mode=1777
+      - /data:size=16m,mode=1777
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    cpus: "0.5"
+    mem_limit: 256m
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  scanner:
+    image: hearthline-backend:${HEARTHLINE_VERSION:-0.2.0}
+    profiles:
+      - jobs
+    init: true
+    env_file:
+      - path: ../backend/.env
+        required: false
+    environment:
+      ENVIRONMENT: ${HEARTHLINE_ENVIRONMENT:-production}
+      DATABASE_PATH: /data/real_estate_simulator.db
+      NVIDIA_VISIBLE_DEVICES: void
+    command: ["python", "-m", "app.jobs.scan_saved_searches"]
+    volumes:
+      - hearthline_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    cpus: "1.5"
+    mem_limit: 1536m
+    restart: "no"
+
+  backup:
+    image: hearthline-backend:${HEARTHLINE_VERSION:-0.2.0}
+    profiles:
+      - jobs
+    init: true
+    environment:
+      DATABASE_PATH: /data/real_estate_simulator.db
+      NVIDIA_VISIBLE_DEVICES: void
+    command:
+      - python
+      - -m
+      - app.jobs.database_maintenance
+      - create
+      - --output-dir
+      - /data/backups
+      - --retention
+      - "14"
+    volumes:
+      - hearthline_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    cpus: "0.5"
+    mem_limit: 512m
+    restart: "no"
+
+volumes:
+  hearthline_data:

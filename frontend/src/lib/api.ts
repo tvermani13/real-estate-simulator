@@ -64,12 +64,14 @@ export type RiskResponse = {
     breach_probability: number;
     breach_count: number;
     runs: number;
-    ending_values: number[];
+    ending_value_sample: number[];
+    ending_value_percentiles: Record<"p05" | "p25" | "p50" | "p75" | "p95", number>;
+    sample_size: number;
   }>;
 };
 
 function baseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

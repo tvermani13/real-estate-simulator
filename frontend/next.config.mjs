@@ -4,6 +4,8 @@ const turbopackRoot = fileURLToPath(new URL(".", import.meta.url));
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  output: "standalone",
+  poweredByHeader: false,
   turbopack: {
     // Force Turbopack to treat `frontend/` as the workspace root so module
     // resolution (e.g. tailwindcss) uses `frontend/node_modules`.
@@ -12,4 +14,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-

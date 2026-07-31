@@ -5,6 +5,7 @@ import unittest
 
 from app.core.auth import hash_password, verify_password
 from app.engine.affordability import calculate_affordability
+from app.engine.monte_carlo import margin_call_probability
 from app.engine.property_matcher import analyze_property
 from app.routes.product_models import FinancialProfile, PropertyListing, SearchCriteria
 from app.services.property_providers import (
@@ -117,6 +118,24 @@ class ProductEngineTests(unittest.TestCase):
         self.assertEqual(address_params["address"], "1 Main Street, Hartford, CT")
         self.assertEqual(address_params["radius"], 12)
         self.assertNotIn("city", address_params)
+
+    def test_zero_loan_has_no_margin_breach_and_distribution_is_bounded(self) -> None:
+        result = margin_call_probability(
+            portfolio_value=1_000_000,
+            loan_amount=0,
+            maintenance_ltv_max=0.7,
+            mu_annual=0.07,
+            sigma_annual=0.22,
+            horizon_months=60,
+            runs=10_000,
+        )
+        self.assertEqual(result.breach_probability, 0)
+        self.assertEqual(result.breach_count, 0)
+        self.assertEqual(len(result.ending_value_sample), 512)
+        self.assertEqual(
+            set(result.ending_value_percentiles),
+            {"p05", "p25", "p50", "p75", "p95"},
+        )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import sqlite3
+from datetime import timedelta
 from typing import Annotated
 from uuid import uuid4
 
@@ -38,6 +41,7 @@ from app.services.property_providers import PropertyProviderError, get_property_
 
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
 
 
 def _user_out(user: dict[str, str]) -> UserOut:
@@ -89,6 +93,8 @@ def _get_search(search_id: str, user_id: str) -> SavedSearchOut:
 
 @router.post("/auth/register", response_model=AuthResponse, status_code=201)
 def register(req: RegisterRequest, response: Response) -> AuthResponse:
+    if not settings.registration_enabled:
+        raise HTTPException(status_code=403, detail="Account registration is disabled")
     user = create_user(req.name, req.email, req.password)
     _save_profile(user["id"], FinancialProfile())
     create_session(user["id"], response)
@@ -231,9 +237,52 @@ def saved_matches(search_id: str, user: CurrentUser) -> list[PropertyMatch]:
     return [PropertyMatch.model_validate(json_loads(row["match_json"])) for row in rows]
 
 
+def _acquire_scan_lease(search_id: str) -> str:
+    now = utc_now()
+    acquired_at = isoformat(now)
+    expires_at = isoformat(now + timedelta(minutes=max(1, settings.scan_lease_minutes)))
+    lease_token = str(uuid4())
+    try:
+        with connection() as db:
+            db.execute("DELETE FROM scan_leases WHERE expires_at <= ?", (acquired_at,))
+            db.execute(
+                """
+                INSERT INTO scan_leases (search_id, lease_token, acquired_at, expires_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (search_id, lease_token, acquired_at, expires_at),
+            )
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="This saved search is already being scanned",
+        ) from exc
+    return lease_token
+
+
+def _release_scan_lease(search_id: str, lease_token: str) -> None:
+    with connection() as db:
+        db.execute(
+            "DELETE FROM scan_leases WHERE search_id = ? AND lease_token = ?",
+            (search_id, lease_token),
+        )
+
+
 @router.post("/searches/{search_id}/scan", response_model=ScanResponse)
 async def scan_search(search_id: str, user: CurrentUser) -> ScanResponse:
     saved_search = _get_search(search_id, user["id"])
+    lease_token = _acquire_scan_lease(search_id)
+    try:
+        return await _run_scan(search_id, user, saved_search)
+    finally:
+        _release_scan_lease(search_id, lease_token)
+
+
+async def _run_scan(
+    search_id: str,
+    user: dict[str, str],
+    saved_search: SavedSearchOut,
+) -> ScanResponse:
     profile = _profile_for(user["id"])
     affordability_result = calculate_affordability(profile)
     criteria = saved_search.criteria
@@ -304,8 +353,9 @@ async def scan_search(search_id: str, user: CurrentUser) -> ScanResponse:
                         "UPDATE listing_matches SET notified_at = ? WHERE search_id = ? AND provider_listing_id = ?",
                         [(now, search_id, match.listing.id) for match in pending_notifications],
                     )
-        except Exception as exc:
-            notification_status = f"Matches saved, but email delivery failed: {exc}"
+        except Exception:
+            logger.exception("Email delivery failed for saved search %s", search_id)
+            notification_status = "Matches saved, but email delivery failed; retry later"
 
     refreshed_search = _get_search(search_id, user["id"])
     return ScanResponse(

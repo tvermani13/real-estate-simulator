@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -108,7 +108,10 @@ class SearchCriteria(BaseModel):
     max_price: float | None = Field(None, gt=0)
     min_bedrooms: float = Field(2, ge=0, le=30)
     min_bathrooms: float = Field(1, ge=0, le=30)
-    property_types: list[str] = Field(default_factory=lambda: ["Single Family", "Condo", "Townhouse"])
+    property_types: list[Annotated[str, Field(min_length=1, max_length=40)]] = Field(
+        default_factory=lambda: ["Single Family", "Condo", "Townhouse"],
+        max_length=10,
+    )
     max_days_on_market: int | None = Field(90, ge=1, le=10_000)
     down_payment_pct: float | None = Field(None, ge=0.03, le=1)
     min_match_score: float = Field(65, ge=0, le=100)
@@ -204,7 +207,7 @@ class ScanResponse(BaseModel):
 
 class SavedSimulationCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
-    inputs: dict[str, float]
+    inputs: dict[str, float] = Field(..., min_length=1, max_length=50)
 
 
 class SavedSimulationOut(SavedSimulationCreate):

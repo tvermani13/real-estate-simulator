@@ -185,7 +185,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!sessionUser) return;
-    void recalc();
+    const timer = window.setTimeout(() => {
+      void recalc();
+    }, 350);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionUser, reqCommon, capGainsTaxRate, brokerSpread, rateShockBps]);
 
@@ -246,7 +249,7 @@ export default function Home() {
   const projChart = useElementSize<HTMLDivElement>();
 
   const endingDistribution = useMemo(() => {
-    const values = risk?.results?.[0]?.ending_values ?? [];
+    const values = risk?.results?.[0]?.ending_value_sample ?? [];
     if (values.length === 0) return [];
     const sorted = [...values].sort((x, y) => x - y);
     const buckets = 30;

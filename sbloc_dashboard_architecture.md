@@ -83,3 +83,9 @@ This is the most critical feature of the dashboard. Using the portfolio's histor
 * **Phase 3:** Develop the Next.js frontend, focusing heavily on state management for the user inputs.
 * **Phase 4:** Implement Recharts/D3 for the Monte Carlo risk visualizations.
 * **Phase 5:** Deploy backend to AWS for high-performance algorithm execution and host frontend on Vercel/AWS Amplify.
+# Historical architecture note
+
+This document captures the original SBLOC dashboard design. The current
+Hearthline application and its self-hosted operational architecture are
+documented in `README.md` and `docs/operations.md`; those sources take
+precedence over the deployment ideas below.
