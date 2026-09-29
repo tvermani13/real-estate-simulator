@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-09-28
 
-README: [`../README.md`](../README.md). Operator runbook: [`RUNBOOK.md`](RUNBOOK.md). Operations: [`operations.md`](operations.md). Original quant brief: [`../sbloc_dashboard_architecture.md`](../sbloc_dashboard_architecture.md). Ecosystem: [`../../ECOSYSTEM.md`](../../ECOSYSTEM.md).
+README: [`../README.md`](../README.md). Operator runbook: [`RUNBOOK.md`](RUNBOOK.md). Operations: [`operations.md`](operations.md). Original quant brief: [`../sbloc_dashboard_architecture.md`](../sbloc_dashboard_architecture.md).
 
 ## Purpose
 

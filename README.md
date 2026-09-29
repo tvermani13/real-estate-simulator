@@ -1,6 +1,6 @@
 # Hearthline Real Estate Planner
 
-Hearthline is an authenticated property-planning product built around the original SBLOC simulator. Feature catalog: [`docs/FEATURES.md`](docs/FEATURES.md). Operator runbook: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Public demo: <https://real-estate-simulator-self.vercel.app/demo>. Workspace architecture: [`../ECOSYSTEM.md`](../ECOSYSTEM.md).
+Hearthline is an authenticated property-planning product built around the original SBLOC simulator. Feature catalog: [`docs/FEATURES.md`](docs/FEATURES.md). Operator runbook: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Public demo: <https://real-estate-simulator-self.vercel.app/demo>.
 
 It now supports:
 
