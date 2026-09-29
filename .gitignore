@@ -47,3 +47,4 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!infra/.env.dgx.example

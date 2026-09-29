@@ -44,4 +44,4 @@ ssh "${SSH_ARGS[@]}" "$DGX_SSH" \
   "curl -fsS http://127.0.0.1:8083/api/ready"
 
 printf '\nHearthline is healthy on DGX loopback. One-time tailnet publication:\n'
-printf '  sudo tailscale serve --bg --https=8445 http://127.0.0.1:8083\n'
+printf '  sudo tailscale serve --bg --https=8446 http://127.0.0.1:8083\n'
