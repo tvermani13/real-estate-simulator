@@ -1,6 +1,8 @@
 # Hearthline Real Estate Planner
 
-Hearthline is an authenticated property-planning product built around the original SBLOC simulator. It now supports:
+Hearthline is an authenticated property-planning product built around the original SBLOC simulator. Feature catalog: [`docs/FEATURES.md`](docs/FEATURES.md). Operator runbook: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Public demo: <https://real-estate-simulator-self.vercel.app/demo>. Workspace architecture: [`../ECOSYSTEM.md`](../ECOSYSTEM.md).
+
+It now supports:
 
 - Email/password accounts with server-side sessions
 - Persisted household finances, liquidity, liabilities, risk tolerance, and financing assumptions
