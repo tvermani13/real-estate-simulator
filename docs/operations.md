@@ -43,22 +43,15 @@ The production frontend image therefore builds with an empty
 
 ## DGX deployment
 
-> **2026-09-28 status: tailnet route PENDING (needs the owner and root).** The
-> original `:8445` listener was reassigned to Life Orchestrator
-> (`127.0.0.1:8084`). Hearthline's Caddy is healthy on `127.0.0.1:8083`, but no
-> Tailscale Serve route points at it, so the app is unreachable from the tailnet.
-> `:8446` is free, and Hearthline's new home is `:8446`. Adding it without root
-> failed (`Access denied: serve config denied`), so nothing on the DGX was
-> changed and its `infra/.env` still names `:8445`. The owner must run
-> `sudo tailscale serve --bg --https=8446 http://127.0.0.1:8083`, then set
-> `HEARTHLINE_ORIGIN=https://spark-1a8f.tailcc2643.ts.net:8446` in the DGX
-> `infra/.env` and rerun `up -d`. Step-by-step, with backup and rollback, in
-> [`RUNBOOK.md`](RUNBOOK.md).
+> **Status (2026-09-30):** tailnet access is restored on `:8446`. The original
+> `:8445` listener now belongs to Life Orchestrator (`127.0.0.1:8084`). The DGX
+> `infra/.env` sets `HEARTHLINE_ORIGIN` to the `:8446` URL, and CORS rejects the
+> old origin.
 
 Hearthline follows the existing personal-app convention on `spark-1a8f`:
 
 ```text
-https://spark-1a8f.tailcc2643.ts.net:8446     (pending: route not yet created; was :8445)
+https://spark-1a8f.tailcc2643.ts.net:8446     (was :8445 until 2026-09-28)
   -> Tailscale Serve (tailnet only)
   -> Caddy 127.0.0.1:8083
        /api/* -> FastAPI
@@ -85,8 +78,7 @@ It never copies local API credentials.
 
 On the first deployment only, add the dedicated tailnet listener without
 changing the existing mappings (`:8446`; `:8445` now belongs to Life
-Orchestrator). This is the pending owner step described in the status banner
-above:
+Orchestrator). On `spark-1a8f` this was done on 2026-09-30:
 
 ```bash
 sudo tailscale serve --bg --https=8446 http://127.0.0.1:8083

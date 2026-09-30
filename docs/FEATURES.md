@@ -50,7 +50,7 @@ Authenticated household property planner built on an SBLOC vs sell-stock quant e
 
 - Local: backend `:8000`, frontend `:3000`.
 - Compose: Caddy on loopback. Local default `127.0.0.1:3080`; DGX `infra/.env` uses `127.0.0.1:8083`.
-- **DGX ingress is pending (2026-09-28).** Tailscale `:8445` now belongs to Life Orchestrator (nginx `:8084`), and no Tailscale route points at Hearthline's Caddy on `:8083`. The containers are healthy but unreachable from the tailnet. Hearthline's new port is `:8446` (free); adding the Serve listener needs `sudo`, which was unavailable, so the owner must run `sudo tailscale serve --bg --https=8446 http://127.0.0.1:8083` and then set `HEARTHLINE_ORIGIN` to the `:8446` URL in the DGX `infra/.env` (still `:8445` today). `infra/.env.dgx.example` already names `:8446`. See [`RUNBOOK.md`](RUNBOOK.md).
+- **DGX ingress:** `https://spark-1a8f.tailcc2643.ts.net:8446` (Tailscale Serve → Caddy `127.0.0.1:8083`), restored 2026-09-30 after `:8445` moved to Life Orchestrator. `HEARTHLINE_ORIGIN` in the DGX `infra/.env` and in `infra/.env.dgx.example` both name `:8446`.
 - Resource caps: backend 2 CPU/2G, frontend 1.5 CPU/1G, no GPU, read-only FS, `cap_drop ALL`.
 - SQLite `backend/data/real_estate_simulator.db`: users, sessions, financial_profiles, saved_searches, listing_matches, saved_simulations, scan_leases, schema_migrations.
 - Auth: email/password, hashed, server-side session cookies, CORS allowlist, rate limiting.
