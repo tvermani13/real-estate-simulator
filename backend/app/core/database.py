@@ -85,6 +85,21 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         CREATE INDEX IF NOT EXISTS idx_scan_leases_expires_at ON scan_leases(expires_at);
         """,
     ),
+    (
+        3,
+        """
+        CREATE TABLE IF NOT EXISTS str_scenarios (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            deal_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_str_scenarios_user_id
+        ON str_scenarios(user_id);
+        """,
+    ),
 )
 
 
