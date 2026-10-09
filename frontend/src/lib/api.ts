@@ -1,3 +1,30 @@
+export type StrDeal = {
+  name:string; address:string; strategy:"investment"|"hybrid";
+  property_price:number; down_payment_pct:number; mortgage_apr:number; loan_term_years:number;
+  closing_cost_pct:number; furnishings:number; cash_reserve:number;
+  annual_gross_revenue:number; revenue_source:"assumption"|"market_average"|"licensed_property_forecast"|"actual_operations";
+  forecast_as_of:string|null; comparable_count:number;
+  monthly_gross_revenue:number[]|null; owner_nights:number; owner_nights_by_month:number[]|null;
+  property_tax_annual:number; insurance_annual:number; utilities_annual:number;
+  property_services_annual:number; repairs_capex_annual:number; management_pct:number;
+  platform_pct:number; turnovers_pct:number; regulatory_gate:"unknown"|"verified"|"blocked";
+  hoa_gate:"unknown"|"verified"|"blocked"; refinance_after_months:number;
+  refinance_apr:number; refinance_fees:number;
+};
+export type StrResults = {
+  annual_gross_before_owner_use:number; foregone_owner_revenue:number;
+  annual_gross_after_owner_use:number; annual_fixed_operating_costs:number;
+  annual_variable_operating_costs:number; annual_noi:number;
+  annual_debt_service:number; annual_cash_flow:number; downside_cash_flow:number;
+  upside_cash_flow:number; debt_service_coverage:number|null;
+  cap_rate:number; cash_on_cash:number; capital_required_including_reserves:number;
+  break_even_gross_before_owner_use:number; future_refinanced_annual_cash_flow:number;
+  refinance_annual_payment_savings:number; refinance_cost_payback_years:number|null;
+  screening_status:"blocked"|"research_only"|"meets_financial_screen"|"below_financial_screen";
+  warnings:string[];
+};
+export type StrScenario={id:string;name:string;deal:StrDeal;created_at:string;updated_at:string};
+
 export type MacroResponse = {
   sofr: { series_id: string; date: string | null; value: number | null };
   effr: { series_id: string; date: string | null; value: number | null };
@@ -269,6 +296,11 @@ export type SavedSimulation = {
 };
 
 export const api = {
+  underwriteStr:(deal:StrDeal)=>apiFetch<StrResults>("/api/str/underwrite",{method:"POST",body:JSON.stringify(deal)}),
+  strScenarios:()=>apiFetch<StrScenario[]>("/api/str/scenarios",{method:"GET"}),
+  saveStrScenario:(body:{name:string;deal:StrDeal})=>apiFetch<StrScenario>("/api/str/scenarios",{method:"POST",body:JSON.stringify(body)}),
+  updateStrScenario:(id:string,body:{name:string;deal:StrDeal})=>apiFetch<StrScenario>(`/api/str/scenarios/${id}`,{method:"PUT",body:JSON.stringify(body)}),
+  deleteStrScenario:(id:string)=>apiFetch<void>(`/api/str/scenarios/${id}`,{method:"DELETE"}),
   me: () => apiFetch<{ user: User }>("/api/auth/me", { method: "GET" }),
   login: (body: { email: string; password: string }) =>
     apiFetch<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
