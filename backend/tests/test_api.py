@@ -78,7 +78,7 @@ class ApiIntegrationTests(unittest.TestCase):
 
         ready = self.client.get("/api/ready")
         self.assertEqual(ready.status_code, 200)
-        self.assertEqual(ready.json()["database"]["schema_version"], 2)
+        self.assertEqual(ready.json()["database"]["schema_version"], 4)
 
     def test_authenticated_demo_workflow_and_session_cookie(self) -> None:
         response = self.client.post(

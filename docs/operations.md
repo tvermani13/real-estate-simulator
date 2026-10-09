@@ -187,6 +187,13 @@ Startup applies ordered, idempotent migrations recorded in
 `schema_migrations`. The readiness endpoint reports the current schema version.
 The backend deliberately stays at one worker while SQLite is authoritative.
 
+Schema 3 adds STR scenarios; schema 4 adds private licensed forecast snapshots,
+written property eligibility, acquisition searches/runs and scan leases.
+[`STR-RUNBOOK.md`](STR-RUNBOOK.md) defines forecast normalization, expiry, legal
+gates and the mathematical assumptions. The STR job is independent of existing
+long-term rental scans and notifications. A self-reported revenue source cannot
+clear the property-forecast gate.
+
 ## Backups
 
 Create a verified online SQLite backup and retain the newest 14:
@@ -198,6 +205,14 @@ make backup
 The job writes backups under `/data/backups` in the persistent volume, runs
 `PRAGMA quick_check`, and refuses to treat a database without migration metadata
 as valid.
+
+New backups and pre-restore safety copies exclude licensed STR forecast
+snapshots and derived acquisition runs, then compact those files. Household
+data, scenarios (snapshot references) and acquisition configuration remain
+included. After restore, reimport permitted licensed evidence and rescan; old
+snapshot references cannot produce verified projections without that data.
+Filesystem snapshots, old backups and WAL retention require operator review
+against the provider's contract before importing real exports.
 
 Backups in the same Docker volume protect against application mistakes but not
 host or disk loss. Before a real deployment, add a second copy target outside
@@ -248,6 +263,15 @@ ExecStart=/usr/bin/flock -n /run/lock/hearthline-scan.lock /usr/bin/docker compo
 
 The application also stores per-search leases, preventing a scheduled scan and
 a manual scan from processing the same saved search concurrently.
+
+For opt-in STR acquisition searches, `make scan-str` runs
+`python -m app.jobs.scan_str_acquisitions` in the same bounded scanner image.
+Install a separate scheduler/lock only when authorized, as documented in
+`STR-RUNBOOK.md`. It combines RentCast sale listings with current, licensed
+property evidence and written municipality/HOA permissions; unverified results
+are never ranked. No demo acquisition recommendations or email messages are
+generated. The job also purges expired licensed evidence when no searches are
+enabled, so schedule daily cleanup before using retention-limited real exports.
 
 ## Updating and rollback
 

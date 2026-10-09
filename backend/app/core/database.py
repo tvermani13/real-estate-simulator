@@ -100,6 +100,55 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         ON str_scenarios(user_id);
         """,
     ),
+    (
+        4,
+        """
+        CREATE TABLE str_forecast_snapshots (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            property_key TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            forecast_json TEXT NOT NULL,
+            as_of TEXT NOT NULL,
+            imported_at TEXT NOT NULL,
+            retention_until TEXT NOT NULL,
+            UNIQUE(user_id, content_hash)
+        );
+        CREATE INDEX idx_str_forecasts_property ON str_forecast_snapshots(user_id, property_key, as_of);
+        CREATE TABLE str_eligibility (
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            property_key TEXT NOT NULL,
+            evidence_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(user_id, property_key)
+        );
+        CREATE TABLE str_acquisition_searches (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            request_json TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_scanned_at TEXT
+        );
+        CREATE INDEX idx_str_acquisition_user ON str_acquisition_searches(user_id);
+        CREATE TABLE str_acquisition_runs (
+            id TEXT PRIMARY KEY,
+            search_id TEXT NOT NULL REFERENCES str_acquisition_searches(id) ON DELETE CASCADE,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            result_json TEXT NOT NULL,
+            retention_until TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_str_runs_search ON str_acquisition_runs(search_id, created_at);
+        CREATE TABLE str_acquisition_leases (
+            search_id TEXT PRIMARY KEY REFERENCES str_acquisition_searches(id) ON DELETE CASCADE,
+            lease_token TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        );
+        """,
+    ),
 )
 
 

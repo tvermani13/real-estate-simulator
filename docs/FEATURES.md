@@ -18,6 +18,7 @@ Authenticated household property planner built on an SBLOC vs sell-stock quant e
 | Discover / Properties | Saved scans (purpose primary/investment, Fairfield County default, filters, score thresholds, DSCR/cap-rate/cashflow mins), live vs demo provider badge, match verdicts, notification toggle. |
 | Instructions | Product modal. |
 | Public demo (`/demo`) | Unauthenticated, self-contained SBLOC walkthrough page (added 2026-08-30). Deployed to Vercel at `https://real-estate-simulator-self.vercel.app/demo` and linked from the portfolio site. |
+| Short stays | Investment/hybrid STR scenarios; licensed property export imports with dated source/comparable evidence; written municipality/HOA gates; saved acquisition scans and downside screening. See [`STR-RUNBOOK.md`](STR-RUNBOOK.md). |
 
 ## Product API (authenticated)
 
@@ -26,6 +27,9 @@ Authenticated household property planner built on an SBLOC vs sell-stock quant e
 - `GET /api/property-provider`
 - CRUD `/api/searches`, matches list, `POST .../scan`
 - CRUD `/api/simulations`
+- STR underwriting and per-user scenario CRUD at `/api/str/underwrite` and `/api/str/scenarios`
+- Immutable private licensed snapshots at `/api/str/forecasts`, property eligibility at `/api/str/eligibility`
+- Saved acquisition searches, manual scans and dated history at `/api/str/acquisitions`
 
 ## Quant API (authenticated)
 
@@ -45,6 +49,8 @@ Authenticated household property planner built on an SBLOC vs sell-stock quant e
 - RentCast sale listings + rental comps for investment scans. Auto demo listings when key missing.
 - Geographic radius then strict Fairfield County filter; also city/state/ZIP/address nationwide.
 - Explicitly no Zillow/Redfin scraping.
+- STR acquisition job combines live RentCast sales with validated licensed property exports; no long-term-rent or market-average STR forecasts. Only current forecasts and both written permission gates can rank.
+- Scheduled STR searches are opt-in; `make scan-str` runs a one-shot job. No timer or production deployment is installed by the PR.
 
 ## Runtime and data
 
@@ -53,6 +59,7 @@ Authenticated household property planner built on an SBLOC vs sell-stock quant e
 - **DGX ingress:** `https://spark-1a8f.tailcc2643.ts.net:8446` (Tailscale Serve → Caddy `127.0.0.1:8083`), restored 2026-09-30 after `:8445` moved to Life Orchestrator. `HEARTHLINE_ORIGIN` in the DGX `infra/.env` and in `infra/.env.dgx.example` both name `:8446`.
 - Resource caps: backend 2 CPU/2G, frontend 1.5 CPU/1G, no GPU, read-only FS, `cap_drop ALL`.
 - SQLite `backend/data/real_estate_simulator.db`: users, sessions, financial_profiles, saved_searches, listing_matches, saved_simulations, scan_leases, schema_migrations.
+- Schema 3/4 add str_scenarios, str_forecast_snapshots, str_eligibility, str_acquisition_searches, str_acquisition_runs and str_acquisition_leases. Backups omit licensed forecast/derived-run data; scenario references and household data remain backed up.
 - Auth: email/password, hashed, server-side session cookies, CORS allowlist, rate limiting.
 - Env names: `FRED_API_KEY`, `RENTCAST_API_KEY`, `SMTP_*`, `DATABASE_PATH`, `CORS_ALLOW_ORIGINS`, `REGISTRATION_ENABLED`, `PROPERTY_PROVIDER`, `SCANNER_RESULT_LIMIT`, `RATE_LIMIT_*`, `SESSION_*`.
 

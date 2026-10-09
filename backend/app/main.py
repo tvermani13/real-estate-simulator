@@ -12,6 +12,7 @@ from app.core.rate_limit import InMemoryRateLimiter, RateLimitMiddleware
 from app.routes.api import router as api_router
 from app.routes.product import router as product_router
 from app.routes.str import router as str_router
+from app.routes.str_evidence import router as str_evidence_router
 
 
 @asynccontextmanager
@@ -41,3 +42,4 @@ app.add_middleware(
 app.include_router(api_router)
 app.include_router(product_router)
 app.include_router(str_router)
+app.include_router(str_evidence_router)
