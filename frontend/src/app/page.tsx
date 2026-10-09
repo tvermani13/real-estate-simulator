@@ -17,6 +17,7 @@ import { Field } from "@/components/Field";
 import { InstructionsModal } from "@/components/InstructionsModal";
 import { AuthScreen } from "@/components/AuthScreen";
 import { DiscoverWorkspace } from "@/components/DiscoverWorkspace";
+import { ShortStayWorkspace } from "@/components/ShortStayWorkspace";
 import { OverviewWorkspace } from "@/components/OverviewWorkspace";
 import { ProfileWorkspace } from "@/components/ProfileWorkspace";
 import { AppHeader, LoadingBlock, type Workspace } from "@/components/ProductUI";
@@ -302,6 +303,7 @@ export default function Home() {
   if (sessionUser === null) return <AuthScreen onAuthenticated={setSessionUser} />;
   if (workspace === "overview") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><OverviewWorkspace onNavigate={setWorkspace} /></div>;
   if (workspace === "profile") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><ProfileWorkspace /></div>;
+  if (workspace === "str") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><ShortStayWorkspace /></div>;
   if (workspace === "discover") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><DiscoverWorkspace user={sessionUser} /></div>;
 
   return (

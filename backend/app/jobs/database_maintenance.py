@@ -31,6 +31,21 @@ def verify_database(path: Path) -> None:
             raise RuntimeError("Database does not contain the schema_migrations table")
 
 
+def _exclude_licensed_data(db: sqlite3.Connection) -> None:
+    """Backups preserve household data but cannot extend a provider's retention term."""
+    # The copy must be a self-contained file before atomic rename, not rely on
+    # a WAL sidecar at the temporary filename after redaction/VACUUM writes.
+    db.commit()
+    db.execute("PRAGMA journal_mode=DELETE")
+    tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    db.execute("PRAGMA secure_delete=ON")
+    for table in ("str_acquisition_runs", "str_forecast_snapshots"):
+        if table in tables:
+            db.execute(f"DELETE FROM {table}")
+    db.commit()
+    db.execute("VACUUM")
+
+
 def create_backup(output_dir: Path, retention: int = 14) -> Path:
     if retention < 1:
         raise ValueError("retention must be at least 1")
@@ -50,6 +65,7 @@ def create_backup(output_dir: Path, retention: int = 14) -> Path:
     try:
         with sqlite3.connect(source_path) as source, sqlite3.connect(temporary_path) as target:
             source.backup(target)
+            _exclude_licensed_data(target)
         verify_database(temporary_path)
         os.replace(temporary_path, destination)
     finally:
@@ -76,6 +92,7 @@ def restore_backup(backup_path: Path, *, confirm_replace: bool) -> Path:
     if target.exists():
         with sqlite3.connect(target) as source, sqlite3.connect(safety_backup) as safety:
             source.backup(safety)
+            _exclude_licensed_data(safety)
         verify_database(safety_backup)
 
     with tempfile.NamedTemporaryFile(

@@ -1,3 +1,63 @@
+export type StrDeal = {
+  name:string; address:string; strategy:"investment"|"hybrid";
+  property_price:number; down_payment_pct:number; mortgage_apr:number; loan_term_years:number;
+  closing_cost_pct:number; furnishings:number; cash_reserve:number;
+  annual_gross_revenue:number; revenue_source:"assumption"|"market_average"|"licensed_property_forecast"|"actual_operations";
+  forecast_as_of:string|null; comparable_count:number; forecast_snapshot_id?:string|null;
+  monthly_calendar_days?:number[]|null; hoa_annual?:number;
+  regulatory_evidence?:GateEvidence|null; hoa_evidence?:GateEvidence|null;
+  monthly_gross_revenue:number[]|null; owner_nights:number; owner_nights_by_month:number[]|null;
+  property_tax_annual:number; insurance_annual:number; utilities_annual:number;
+  property_services_annual:number; repairs_capex_annual:number; management_pct:number;
+  platform_pct:number; turnovers_pct:number; regulatory_gate:"unknown"|"verified"|"blocked";
+  hoa_gate:"unknown"|"verified"|"blocked"; refinance_after_months:number;
+  refinance_apr:number; refinance_fees:number;
+};
+export type StrResults = {
+  annual_gross_before_owner_use:number; foregone_owner_revenue:number;
+  annual_gross_after_owner_use:number; annual_fixed_operating_costs:number;
+  annual_variable_operating_costs:number; annual_noi:number;
+  annual_debt_service:number; annual_cash_flow:number; downside_cash_flow:number;
+  upside_cash_flow:number; debt_service_coverage:number|null;
+  cap_rate:number; cash_on_cash:number|null; capital_required_including_reserves:number;
+  break_even_gross_before_owner_use:number|null; future_refinanced_annual_cash_flow:number;
+  refinance_remaining_principal:number; refinance_remaining_term_months:number;
+  refinance_annual_payment_savings:number; refinance_cost_payback_years:number|null;
+  screening_status:"blocked"|"research_only"|"meets_financial_screen"|"below_financial_screen";
+  warnings:string[];
+};
+export type StrScenario={id:string;name:string;deal:StrDeal;created_at:string;updated_at:string};
+
+export type GateEvidence = {
+  status:"unknown"|"verified"|"blocked"; document_reference?:string|null;
+  authority?:string|null; checked_on?:string|null; valid_until?:string|null; notes?:string;
+};
+export type ForecastProperty = {
+  address:string; property_type:string; bedrooms:number; bathrooms:number; provider_property_id:string;
+};
+export type LicensedForecast = {
+  property:ForecastProperty; provider:string; source_url:string; attribution:string;
+  license_reference:string; data_version:string; as_of:string; generated_at:string;
+  retention_until:string; methodology:string;
+  months:{month:string;gross_revenue:number;adr:number|null;occupancy:number|null;available_nights:number|null}[];
+  comparables:{provider_property_id:string;source_url:string;property_type:string;bedrooms:number;bathrooms:number;
+    distance_miles:number;gross_revenue:number;period_start:string;period_end:string;owner_blocked_nights:number;exclusion_reason:string|null}[];
+};
+export type ForecastResult = {
+  status:"available"|"unavailable"|"stale"|"insufficient_evidence"|"property_mismatch"|"license_expired";
+  reason:string; snapshot_id:string|null; imported_at:string|null; qualified_comparable_count:number;
+  forecast:LicensedForecast|null;
+};
+export type PropertyEligibility = {property:ForecastProperty;municipality:GateEvidence;hoa:GateEvidence};
+export type AcquisitionSearchInput = {name:string;criteria:Partial<SearchCriteria>;deal_template:StrDeal;enabled:boolean};
+export type AcquisitionSearch = AcquisitionSearchInput & {id:string;created_at:string;updated_at:string;last_scanned_at:string|null};
+export type AcquisitionCandidate = {
+  listing:PropertyListing;forecast_status:string;forecast_reason:string;snapshot_id:string|null;
+  provider_attribution:string|null;forecast_as_of:string|null;municipality:GateEvidence;hoa:GateEvidence;
+  status:string;reasons:string[];underwriting:StrResults|null;rank:number|null;
+};
+export type AcquisitionRun = {id:string;search_id:string;scanned_at:string;status:string;detail:string;candidates:AcquisitionCandidate[]};
+
 export type MacroResponse = {
   sofr: { series_id: string; date: string | null; value: number | null };
   effr: { series_id: string; date: string | null; value: number | null };
@@ -269,6 +329,21 @@ export type SavedSimulation = {
 };
 
 export const api = {
+  importStrForecast:(body:unknown)=>apiFetch<ForecastResult>("/api/str/forecasts/import",{method:"POST",body:JSON.stringify(body)}),
+  strForecast:(id:string)=>apiFetch<ForecastResult>(`/api/str/forecasts/${id}`,{method:"GET"}),
+  lookupStrForecast:(body:ForecastProperty)=>apiFetch<ForecastResult>("/api/str/forecasts/lookup",{method:"POST",body:JSON.stringify(body)}),
+  saveStrEligibility:(body:PropertyEligibility)=>apiFetch<PropertyEligibility>("/api/str/eligibility",{method:"PUT",body:JSON.stringify(body)}),
+  strAcquisitions:()=>apiFetch<AcquisitionSearch[]>("/api/str/acquisitions",{method:"GET"}),
+  saveStrAcquisition:(body:AcquisitionSearchInput)=>apiFetch<AcquisitionSearch>("/api/str/acquisitions",{method:"POST",body:JSON.stringify(body)}),
+  updateStrAcquisition:(id:string,body:AcquisitionSearchInput)=>apiFetch<AcquisitionSearch>(`/api/str/acquisitions/${id}`,{method:"PUT",body:JSON.stringify(body)}),
+  deleteStrAcquisition:(id:string)=>apiFetch<void>(`/api/str/acquisitions/${id}`,{method:"DELETE"}),
+  scanStrAcquisition:(id:string)=>apiFetch<AcquisitionRun>(`/api/str/acquisitions/${id}/scan`,{method:"POST"}),
+  strAcquisitionRuns:(id:string)=>apiFetch<AcquisitionRun[]>(`/api/str/acquisitions/${id}/runs`,{method:"GET"}),
+  underwriteStr:(deal:StrDeal)=>apiFetch<StrResults>("/api/str/underwrite",{method:"POST",body:JSON.stringify(deal)}),
+  strScenarios:()=>apiFetch<StrScenario[]>("/api/str/scenarios",{method:"GET"}),
+  saveStrScenario:(body:{name:string;deal:StrDeal})=>apiFetch<StrScenario>("/api/str/scenarios",{method:"POST",body:JSON.stringify(body)}),
+  updateStrScenario:(id:string,body:{name:string;deal:StrDeal})=>apiFetch<StrScenario>(`/api/str/scenarios/${id}`,{method:"PUT",body:JSON.stringify(body)}),
+  deleteStrScenario:(id:string)=>apiFetch<void>(`/api/str/scenarios/${id}`,{method:"DELETE"}),
   me: () => apiFetch<{ user: User }>("/api/auth/me", { method: "GET" }),
   login: (body: { email: string; password: string }) =>
     apiFetch<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
