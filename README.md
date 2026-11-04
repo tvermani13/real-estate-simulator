@@ -19,16 +19,23 @@ It now supports:
 
 ## Local development
 
-### Backend (FastAPI)
-
-From repo root:
+Requires Python 3.11 or newer and Node.js 22 or newer. From the repo root,
+install both halves from their lockfiles:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
+make bootstrap   # .venv from backend/requirements.lock, then npm ci in frontend/
+```
+
+### Backend (FastAPI)
+
+Run the API from `backend/`. The `app` package lives there, and settings read
+`.env` from the working directory, so starting it from the repo root fails with
+`No module named 'app'` and would not load `backend/.env`:
+
+```bash
 cp backend/.env.example backend/.env
-uvicorn app.main:app --reload --port 8000
+cd backend
+../.venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
 Then visit `http://localhost:8000/docs`.
@@ -42,7 +49,7 @@ SESSION_COOKIE_SAMESITE=none
 
 ### Frontend (Next.js)
 
-In another terminal:
+In another terminal (`make bootstrap` already ran `npm ci` here):
 
 ```bash
 cd frontend
@@ -51,6 +58,12 @@ npm run dev
 ```
 
 Visit `http://localhost:3000`.
+
+### Checks
+
+```bash
+make verify   # backend tests, lint, typecheck, build, Compose config, pip check and a dependency audit
+```
 
 Create an account, enter household finances under **Finances**, and then create a scan under **Properties**.
 
