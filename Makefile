@@ -2,7 +2,7 @@ PYTHON ?= .venv/bin/python
 COMPOSE_ENV ?= $(if $(wildcard infra/.env),infra/.env,infra/.env.example)
 COMPOSE := docker compose --env-file $(COMPOSE_ENV) -f infra/docker-compose.yml
 
-.PHONY: bootstrap test lint typecheck build verify compose-config compose-build stack-up stack-down stack-logs smoke backup scan scan-str
+.PHONY: bootstrap test lint typecheck build audit verify compose-config compose-build stack-up stack-down stack-logs smoke backup scan scan-str
 
 bootstrap:
 	python3 -m venv .venv
@@ -22,10 +22,13 @@ typecheck:
 build:
 	cd frontend && npm run build
 
+audit:
+	cd frontend && npm audit --audit-level=high
+
 compose-config:
 	$(COMPOSE) --profile jobs config --quiet
 
-verify: test lint typecheck build compose-config
+verify: test lint typecheck build audit compose-config
 	$(PYTHON) -m pip check
 
 compose-build:

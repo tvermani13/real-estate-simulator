@@ -16,11 +16,11 @@ Features: [`FEATURES.md`](FEATURES.md).
 ## Local development
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r backend/requirements.txt && cp backend/.env.example backend/.env
-cd backend && uvicorn app.main:app --reload --port 8000     # http://localhost:8000/docs
+make bootstrap                                               # .venv from requirements.lock + npm ci
+cp backend/.env.example backend/.env
+cd backend && ../.venv/bin/uvicorn app.main:app --reload --port 8000   # http://localhost:8000/docs
 cd frontend && cp .env.example .env.local && npm run dev    # http://localhost:3000
-make verify                                                  # full release gate
+make verify                                                  # full release gate, includes npm audit
 ```
 
 Container stack locally: `cp infra/.env.example infra/.env && make compose-build && make stack-up && make smoke`.
