@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   api, type AcquisitionRun, type AcquisitionSearch, type ForecastProperty,
   type ForecastResult, type GateEvidence, type StrDeal,
@@ -50,9 +50,22 @@ export function StrEvidenceWorkspace({ deal, onDeal }: { deal: StrDeal; onDeal: 
     api.strAcquisitions().then(x => { if (active) setSearches(x); }).catch(e => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, []);
+  // Latest deal for the snapshot effect, so saved evidence is read without refetching on every edit.
+  const dealRef = useRef(deal);
+  useEffect(() => { dealRef.current = deal; }, [deal]);
   useEffect(() => {
     let active = true;
-    if (deal.forecast_snapshot_id) api.strForecast(deal.forecast_snapshot_id).then(x => { if (active) setForecast(x); }).catch(e => { if (active) { setForecast(null); setError(String(e)); } });
+    if (deal.forecast_snapshot_id) api.strForecast(deal.forecast_snapshot_id).then(x => {
+      if (!active) return;
+      setForecast(x);
+      // Reopen the eligibility review saved with this scenario instead of requiring reattachment.
+      if (x.forecast) {
+        const current = dealRef.current;
+        setSubject(x.forecast.property);
+        setMunicipality(current.regulatory_evidence ?? unknownGate);
+        setHoa(current.hoa_evidence ?? unknownGate);
+      }
+    }).catch(e => { if (active) { setForecast(null); setError(String(e)); } });
     else setForecast(null);
     return () => { active = false; };
   }, [deal.forecast_snapshot_id]);
