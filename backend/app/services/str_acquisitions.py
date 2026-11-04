@@ -15,7 +15,7 @@ from app.routes.str_acquisition_models import AcquisitionCandidate, AcquisitionR
 from app.routes.str_forecast_models import ForecastProperty
 from app.routes.str_models import StrDeal
 from app.services.property_providers import PropertyProviderError, RentCastPropertyProvider
-from app.services.str_forecasts import apply_forecast, get_str_forecast_provider, property_key, purge_expired_evidence
+from app.services.str_forecasts import ForecastCalendarConflict, apply_forecast, get_str_forecast_provider, property_key, purge_expired_evidence
 
 
 def eligibility_for(user_id: str, subject: ForecastProperty) -> PropertyEligibility:
@@ -109,7 +109,13 @@ async def scan_acquisitions(search_id: str, user: dict[str, str]) -> Acquisition
                                    hoa_annual=listing.hoa_monthly * 12,
                                    regulatory_gate=legal[0], hoa_gate=legal[1],
                                    regulatory_evidence=eligibility.municipality, hoa_evidence=eligibility.hoa)
-                    deal = apply_forecast(StrDeal.model_validate(payload), forecast)
+                    try:
+                        deal = apply_forecast(StrDeal.model_validate(payload), forecast)
+                    except ForecastCalendarConflict as conflict:
+                        # Needs owner review for this property only; the rest of the run continues.
+                        candidate.reasons.append(str(conflict))
+                        run.candidates.append(candidate)
+                        continue
                     candidate.underwriting = analyze_str(deal, forecast_verified=True)
                     candidate.status = candidate.underwriting.screening_status
                     c, out = search.criteria, candidate.underwriting

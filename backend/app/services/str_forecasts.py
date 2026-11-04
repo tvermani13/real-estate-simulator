@@ -7,9 +7,15 @@ from abc import ABC, abstractmethod
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from app.core.database import connection, json_dumps, json_loads
 from app.routes.str_forecast_models import ForecastProperty, ForecastResult, LicensedForecastExport
 from app.routes.str_models import StrDeal
+
+
+class ForecastCalendarConflict(ValueError):
+    """The deal's owner-use nights don't fit the forecast's calendar months."""
 
 
 def property_key(address: str) -> str:
@@ -115,7 +121,14 @@ def apply_forecast(deal: StrDeal, result: ForecastResult) -> StrDeal:
                    monthly_calendar_days=days, revenue_source="licensed_property_forecast",
                    forecast_as_of=forecast.as_of, comparable_count=result.qualified_comparable_count,
                    forecast_snapshot_id=result.snapshot_id)
-    return StrDeal.model_validate(payload)
+    try:
+        return StrDeal.model_validate(payload)
+    except ValidationError as error:
+        # Only the calendar changes here, e.g. owner nights on 29 February against a 28-day forecast February.
+        raise ForecastCalendarConflict(
+            "Owner-use nights don't fit this forecast's calendar months (for example, 29 February against "
+            "a 28-day February). Review the owner nights before underwriting this property."
+        ) from error
 
 
 def scenario_for_storage(deal: StrDeal) -> StrDeal:

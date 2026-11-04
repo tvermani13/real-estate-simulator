@@ -8,7 +8,7 @@ from app.core.auth import CurrentUser, isoformat, utc_now
 from app.core.database import connection, json_dumps, json_loads
 from app.engine.str_underwriting import analyze_str
 from app.routes.str_models import StrDeal, StrScenarioCreate, StrScenarioOut, StrUnderwriting
-from app.services.str_forecasts import apply_forecast, property_key, scenario_for_storage, snapshot_by_id
+from app.services.str_forecasts import ForecastCalendarConflict, apply_forecast, property_key, scenario_for_storage, snapshot_by_id
 
 router = APIRouter(prefix="/api/str", tags=["short-term rentals"])
 
@@ -23,7 +23,10 @@ def underwrite(deal: StrDeal, user: CurrentUser) -> StrUnderwriting:
             raise HTTPException(422, "Snapshot belongs to a different property")
         if result.status != "available":
             raise HTTPException(409, result.reason)
-        return analyze_str(apply_forecast(deal, result), forecast_verified=True)
+        try:
+            return analyze_str(apply_forecast(deal, result), forecast_verified=True)
+        except ForecastCalendarConflict as conflict:
+            raise HTTPException(422, str(conflict)) from conflict
     return analyze_str(deal)
 
 

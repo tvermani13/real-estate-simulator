@@ -243,6 +243,30 @@ class StrWorkflowTests(unittest.TestCase):
         self.assertIsNone(c["rank"])
         self.assertGreaterEqual(len(self.client.get(f"/api/str/acquisitions/{sid}/runs").json()), 2)
 
+    def test_owner_nights_that_do_not_fit_the_forecast_calendar_need_review_not_a_failed_scan(self) -> None:
+        # A leap-year template with an owner night on 29 February against a forecast whose February has 28 days.
+        leap_days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        owner = [0] * 12
+        owner[1] = 29
+        template = {"strategy": "hybrid", "owner_nights": 29, "owner_nights_by_month": owner, "monthly_calendar_days": leap_days}
+        payload = synthetic_export()
+        if not any(m["month"][5:7] == "02" and m["available_nights"] == 28 for m in payload["months"]):
+            self.skipTest("Synthetic forecast window has a leap February")
+        snapshot = self.import_export(payload)
+        self.put_gates(payload)
+        sid = self.create_search(deal_template=template)
+        good = self.sale_listing("2 Synthetic Lane, Example, PA").model_copy(update={"id": "sale-2"})
+        c = self.scan(sid, [self.sale_listing(), good])["candidates"]
+        affected = next(x for x in c if x["listing"]["address"] == "1 Synthetic Lane, Example, PA")
+        self.assertEqual(affected["status"], "research_only")
+        self.assertIsNone(affected["rank"])
+        self.assertIsNone(affected["underwriting"])
+        self.assertTrue(any("owner" in r.lower() for r in affected["reasons"]))
+        self.assertEqual(len(c), 2)
+        r = self.client.post("/api/str/underwrite", json={**template, "address": payload["property"]["address"],
+                                                          "forecast_snapshot_id": snapshot["snapshot_id"]})
+        self.assertEqual(r.status_code, 422, r.text)
+
     def test_expired_permission_is_unknown_but_prohibition_remains_blocked(self) -> None:
         payload = synthetic_export()
         self.import_export(payload)
