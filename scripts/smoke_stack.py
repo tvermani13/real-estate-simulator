@@ -84,6 +84,25 @@ def main() -> int:
         if not isinstance(results, list) or results[0]["breach_probability"] != 0:
             raise RuntimeError("Zero-loan risk smoke check failed")
 
+        str_deal = {"address": "1 Synthetic Smoke Lane, Example, PA", "annual_gross_revenue": 65000}
+        underwriting = request_json(opener, args.base_url, "/api/str/underwrite", method="POST", body=str_deal)
+        if underwriting["screening_status"] != "research_only" or abs(
+            underwriting["annual_cash_flow"] - underwriting["annual_noi"] + underwriting["annual_debt_service"]
+        ) > 0.01:
+            raise RuntimeError("STR accounting or evidence gate smoke check failed")
+        scenario = request_json(opener, args.base_url, "/api/str/scenarios", method="POST",
+                                body={"name": "Synthetic smoke STR", "deal": str_deal})
+        saved = request_json(opener, args.base_url, f"/api/str/scenarios/{scenario['id']}")
+        if saved["deal"]["address"] != str_deal["address"]:
+            raise RuntimeError("STR saved scenario smoke check failed")
+        updated = request_json(opener, args.base_url, f"/api/str/scenarios/{scenario['id']}", method="PUT",
+                               body={"name": "Updated smoke STR", "deal": str_deal})
+        if updated["name"] != "Updated smoke STR":
+            raise RuntimeError("STR scenario update smoke check failed")
+        with opener.open(urllib.request.Request(f"{args.base_url.rstrip('/')}/api/str/scenarios/{scenario['id']}", method="DELETE")) as response:
+            if response.status != 204:
+                raise RuntimeError("STR scenario delete smoke check failed")
+
     print(
         f"Hearthline stack smoke test passed at {args.base_url} "
         f"(authenticated={args.authenticated})"

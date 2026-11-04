@@ -2,13 +2,14 @@
 
 import type { User } from "@/lib/api";
 
-export type Workspace = "overview" | "profile" | "discover" | "simulator";
+export type Workspace = "overview" | "profile" | "discover" | "str" | "simulator";
 
 const navItems: Array<{ id: Workspace; label: string; eyebrow: string }> = [
   { id: "overview", label: "Plan", eyebrow: "01" },
   { id: "profile", label: "Finances", eyebrow: "02" },
   { id: "discover", label: "Properties", eyebrow: "03" },
-  { id: "simulator", label: "SBLOC lab", eyebrow: "04" },
+  { id: "str", label: "Short stays", eyebrow: "04" },
+  { id: "simulator", label: "SBLOC lab", eyebrow: "05" },
 ];
 
 export function AppHeader({

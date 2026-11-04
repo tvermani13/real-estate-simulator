@@ -2,7 +2,7 @@ PYTHON ?= .venv/bin/python
 COMPOSE_ENV ?= $(if $(wildcard infra/.env),infra/.env,infra/.env.example)
 COMPOSE := docker compose --env-file $(COMPOSE_ENV) -f infra/docker-compose.yml
 
-.PHONY: bootstrap test lint typecheck build verify compose-config compose-build stack-up stack-down stack-logs smoke backup scan
+.PHONY: bootstrap test lint typecheck build verify compose-config compose-build stack-up stack-down stack-logs smoke backup scan scan-str
 
 bootstrap:
 	python3 -m venv .venv
@@ -48,3 +48,6 @@ backup:
 
 scan:
 	$(COMPOSE) --profile jobs run --rm scanner
+
+scan-str:
+	$(COMPOSE) --profile jobs run --rm scanner python -m app.jobs.scan_str_acquisitions

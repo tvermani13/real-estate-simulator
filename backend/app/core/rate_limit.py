@@ -33,6 +33,9 @@ RULES = (
         6,
         600,
     ),
+    RateLimitRule(
+        "str_acquisition_scan", "POST", re.compile(r"/api/str/acquisitions/[^/]+/scan"), 6, 600,
+    ),
 )
 
 
