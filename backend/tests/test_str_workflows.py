@@ -154,7 +154,8 @@ class StrWorkflowTests(unittest.TestCase):
                          lambda p: p.update(retention_permitted=False),
                          lambda p: p.update(currency="EUR"),
                          lambda p: p.update(revenue_basis="includes_owner_blocks"),
-                         lambda p: p.update(as_of=(date.today()+timedelta(days=1)).isoformat()),
+                         # Future by both clocks: the import validator uses the UTC date, the fixture the local one.
+                         lambda p: p.update(as_of=(max(date.today(), datetime.now(timezone.utc).date())+timedelta(days=1)).isoformat()),
                          lambda p: p["months"][1].update(month=p["months"][0]["month"]),
                          lambda p: p["months"][0].update(gross_revenue=-1),
                          lambda p: p["months"][0].update(gross_revenue=1),
