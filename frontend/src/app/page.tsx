@@ -127,7 +127,7 @@ export default function Home() {
       });
   }, []);
 
-  // A platform person can switch workspace elsewhere in the portal. Coming back to this page (tab focus or
+  // A platform person can switch workspace elsewhere in the portal. Coming back to this page (tab or window focus, or
   // back/forward) re-checks who and which workspace this is, and reloads so no stale private data or form survives.
   useEffect(() => {
     if (sessionUser?.sign_in !== "platform") return;
@@ -143,9 +143,11 @@ export default function Home() {
     function onPageShow(event: PageTransitionEvent) { if (event.persisted) recheck(); }
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", recheck);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", recheck);
     };
   }, [sessionUser]);
 
