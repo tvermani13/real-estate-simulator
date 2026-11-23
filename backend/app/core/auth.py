@@ -10,8 +10,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Cookie, Depends, Header, HTTPException, Response, status
+from fastapi import Cookie, Depends, Header, HTTPException, Request, Response, status
+from platform_context import Decision
+from platform_context.fastapi import PlatformContextDenied
 
+from app.core import platform
 from app.core.config import settings
 from app.core.database import connection
 from app.core.scope import Scope
@@ -176,8 +179,29 @@ class Principal:
         return {"id": self.scope.owner_sub or "", "name": "Platform sign-in", "email": "", "created_at": ""}
 
 
-def current_principal(user: CurrentUser) -> Principal:
+def current_principal(request: Request) -> Principal:
+    """Who is calling. A request with a platform context is decided by that context alone.
+
+    The legacy cookie and bearer are read only after the platform branch has been ruled out, so a
+    platform request never touches them.
+    """
+    if platform.carries_context(request.headers):
+        identity, denial = platform.resolve(request.headers.getlist(platform.CONTEXT_HEADER), request.method)
+        if denial is not None:
+            raise PlatformContextDenied(denial)
+        return Principal(scope=Scope.platform(identity.workspace_id, identity.owner_sub))  # type: ignore[union-attr]
+    user = current_user(
+        authorization=request.headers.get("authorization"),
+        session_cookie=request.cookies.get(settings.session_cookie_name),
+    )
     return Principal(scope=Scope.legacy(user["id"]), user=user)
 
 
+def legacy_only(request: Request) -> None:
+    """Sign-in, registration and sign-out belong to the legacy world; a platform request never uses them."""
+    if platform.carries_context(request.headers):
+        raise PlatformContextDenied(Decision(False, 403, "context_not_accepted"))
+
+
 CurrentPrincipal = Annotated[Principal, Depends(current_principal)]
+LegacyOnly = Depends(legacy_only)

@@ -281,6 +281,34 @@ class PlatformScopeTests(unittest.TestCase):
         r = self.client.post("/api/searches", json={"name": "Alerts", "criteria": {}, "notifications_enabled": True})
         self.assertEqual(r.status_code, 422, r.text)
 
+    def test_a_platform_read_deletes_nothing_and_a_platform_write_deletes_only_its_own_expired_evidence(self) -> None:
+        mine = self.seed()
+        self.as_(platform(WS_B, SUB_2))
+        theirs = self.seed()
+        with connection() as db:
+            db.execute("UPDATE str_forecast_snapshots SET retention_until = '2000-01-01'")
+            db.execute("UPDATE str_acquisition_runs SET retention_until = '2000-01-01'")
+        before = self.counts()
+        # Reads hide expired evidence for the caller and delete nothing, for anyone.
+        self.assertEqual(self.client.get(f"/api/str/forecasts/{theirs['snapshot']}").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/str/acquisitions/{theirs['acquisition']}/runs").json(), [])
+        export = synthetic_export()
+        self.assertEqual(self.client.post("/api/str/forecasts/lookup", json=export["property"]).json()["status"], "unavailable")
+        self.assertEqual(self.counts(), before)
+        # A platform write removes only that scope's own expired rows.
+        self.assertEqual(self.client.post("/api/str/forecasts/import", json=synthetic_export("2 Other Rd, Example, PA")).status_code, 201)
+        after = self.counts()
+        self.assertEqual(after["str_forecast_snapshots"], before["str_forecast_snapshots"] - 1 + 1)
+        with connection() as db:
+            owners = {r[0] for r in db.execute("SELECT owner_sub FROM str_forecast_snapshots WHERE retention_until = '2000-01-01'")}
+        self.assertEqual(owners, {SUB_1})
+        self.assertIsNotNone(mine)
+
+    def counts(self) -> dict[str, int]:
+        with connection() as db:
+            return {t: db.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+                    for t in ("str_forecast_snapshots", "str_acquisition_runs")}
+
     def test_me_for_a_platform_person_has_no_hearthline_profile(self) -> None:
         user = self.client.get("/api/auth/me").json()["user"]
         self.assertEqual(user["id"], SUB_1)

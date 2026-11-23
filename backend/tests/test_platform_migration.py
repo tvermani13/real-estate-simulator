@@ -257,3 +257,67 @@ class PlatformMigrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UpgradeRehearsalTests(unittest.TestCase):
+    def test_the_rehearsal_passes_on_a_v4_copy_and_flags_a_broken_one(self) -> None:
+        from app.jobs.upgrade_rehearsal import rehearse
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "live-copy.db"
+            original = settings.database_path
+            try:
+                settings.database_path = str(source)
+                with connection() as db:
+                    seed_v4(db)
+                self.assertEqual(rehearse(source, root / "work"), [])
+                # The live copy is never modified: it is still v4.
+                with sqlite3.connect(source) as db:
+                    self.assertEqual(db.execute("SELECT max(version) FROM schema_migrations").fetchone()[0], 4)
+
+                broken = root / "broken.db"
+                with sqlite3.connect(source) as src, sqlite3.connect(broken) as dst:
+                    src.backup(dst)
+                with sqlite3.connect(broken) as db:
+                    db.execute("UPDATE str_acquisition_runs SET user_id='u2' WHERE id='run-u1'")
+                with self.assertRaisesRegex(RuntimeError, "owned differently"):
+                    rehearse(broken, root / "work2")
+            finally:
+                settings.database_path = original
+
+
+class RestoreCandidateChecks(unittest.TestCase):
+    def test_restore_refuses_a_candidate_with_a_run_owned_differently_and_leaves_the_target_alone(self) -> None:
+        from app.jobs.database_maintenance import restore_backup
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = settings.database_path
+            try:
+                settings.database_path = str(root / "live.db")
+                init_database()
+                with connection() as db:
+                    db.execute("INSERT INTO users VALUES('ua','A','a@example.test','h','t')")
+                    db.execute("INSERT INTO users VALUES('ub','B','b@example.test','h','t')")
+                    db.execute("INSERT INTO str_acquisition_searches(id,user_id,name,request_json,created_at,updated_at) VALUES('s','ua','n','{}','t','t')")
+                    db.execute("INSERT INTO str_acquisition_runs(id,search_id,user_id,result_json,retention_until,created_at) VALUES('r','s','ua','{}','2099','t')")
+                candidate = root / "candidate.db"
+                with sqlite3.connect(settings.database_path) as src, sqlite3.connect(candidate) as dst:
+                    src.backup(dst)
+                with sqlite3.connect(candidate) as db:
+                    db.execute("DROP TRIGGER str_runs_same_scope_update")
+                    db.execute("UPDATE str_acquisition_runs SET user_id='ub'")
+                with self.assertRaisesRegex(RuntimeError, "owned differently"):
+                    restore_backup(candidate, confirm_replace=True)
+                with connection() as db:
+                    self.assertEqual(db.execute("SELECT user_id FROM str_acquisition_runs").fetchone()[0], "ua")
+            finally:
+                settings.database_path = original
+
+    def test_the_rehearsal_flags_a_retained_column_that_disappears(self) -> None:
+        from app.jobs import upgrade_rehearsal
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "x.db"
+            with sqlite3.connect(path) as db:
+                db.execute("CREATE TABLE saved_simulations(id TEXT)")
+            result = upgrade_rehearsal.digest(path, {"saved_simulations": ["id", "name"]})
+            self.assertEqual(result["saved_simulations"][0], -1)

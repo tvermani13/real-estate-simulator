@@ -146,10 +146,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => "");
     let detail = text;
     try {
-      const parsed = JSON.parse(text) as { detail?: string | Array<{ msg?: string }> };
+      const parsed = JSON.parse(text) as { detail?: string | Array<{ msg?: string }>; error?: { message?: string } };
       detail = typeof parsed.detail === "string"
         ? parsed.detail
-        : parsed.detail?.map((item) => item.msg).filter(Boolean).join(". ") ?? text;
+        : parsed.error?.message ?? parsed.detail?.map((item) => item.msg).filter(Boolean).join(". ") ?? text;
     } catch {
       // Keep the response text when an upstream does not return JSON.
     }
@@ -171,6 +171,10 @@ export type User = {
   name: string;
   email: string;
   created_at: string;
+  /** "platform" when the person signed in through the platform: no Hearthline email or password. */
+  sign_in?: "legacy" | "platform";
+  /** The platform workspace this view belongs to; a change means every private screen is stale. */
+  workspace_id?: string | null;
 };
 
 export type FinancialProfile = {
@@ -344,7 +348,7 @@ export const api = {
   saveStrScenario:(body:{name:string;deal:StrDeal})=>apiFetch<StrScenario>("/api/str/scenarios",{method:"POST",body:JSON.stringify(body)}),
   updateStrScenario:(id:string,body:{name:string;deal:StrDeal})=>apiFetch<StrScenario>(`/api/str/scenarios/${id}`,{method:"PUT",body:JSON.stringify(body)}),
   deleteStrScenario:(id:string)=>apiFetch<void>(`/api/str/scenarios/${id}`,{method:"DELETE"}),
-  me: () => apiFetch<{ user: User }>("/api/auth/me", { method: "GET" }),
+  me: () => apiFetch<{ user: User; sign_in?: "legacy" | "platform"; workspace_id?: string | null }>("/api/auth/me", { method: "GET" }),
   login: (body: { email: string; password: string }) =>
     apiFetch<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
   register: (body: { name: string; email: string; password: string }) =>

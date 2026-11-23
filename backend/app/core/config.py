@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     registration_enabled: bool = True
 
+    # Platform sign-in (platform ADR 0007/0012). Off until the staging acceptance has passed.
+    platform_context: str = "off"
+    platform_origin: str = ""  # the one origin the edge serves, e.g. https://hearthline.example.ts.net
+    platform_jwks_url: str = "http://127.0.0.1:9190/.well-known/platform-jwks.json"
+
     rate_limit_enabled: bool = True
     rate_limit_trust_proxy_headers: bool = False
     scan_lease_minutes: int = 15

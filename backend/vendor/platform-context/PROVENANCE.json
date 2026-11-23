@@ -1,0 +1,21 @@
+{
+  "package": "platform-context",
+  "version": "1.0.0",
+  "file": "platform_context-1.0.0-py3-none-any.whl",
+  "sha256": "cc20de8b167204fd9b261e314075c68d1cc395df2bfdbf8ca5ea975c7b2fa476",
+  "platformRepository": "tvermani13/platform",
+  "platformCommit": "2a43652ac0575e636dd3b0665404f90a5ad2d481",
+  "contract": "platform-context/v1 (the wheel also parses v2; Hearthline pins v1)",
+  "build": "git archive adapters/python at the platform commit; delete any tracked build/ and *.egg-info; pip wheel --no-deps . (Python 3.11); every packaged file compared with the committed source",
+  "sourceSha256": {
+    "platform_context/__init__.py": "e403a73b2a3b2a1190c50d6aa658af6a1b59c1b714d0ca304f7f3b18fd9d5ad4",
+    "platform_context/claims.py": "d88fc0fcac27da3346fe55c8b58545503e5c7f2ad5750b70148f94443c79ea03",
+    "platform_context/decide.py": "06ca7f4c93de75e0f9fe392724957ff77391c592291a311e1d7c381f5002faef",
+    "platform_context/fastapi.py": "972e367b19981a1df2bf268ef519c6a5300ee1ddb1af8ff659401716a71e70f1",
+    "platform_context/verifier.py": "980ea33221fe86dbbf510160180b251019bab928edbf0891b4dda601f50e0763"
+  },
+  "requires": {
+    "cryptography": ">=44"
+  },
+  "decision": "platform ADR 0012, decision 9"
+}

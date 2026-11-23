@@ -18,6 +18,10 @@ class UserOut(BaseModel):
 
 class AuthResponse(BaseModel):
     user: UserOut
+    # "platform" when the caller signed in through the platform: it has no Hearthline name, email or password.
+    sign_in: Literal["legacy", "platform"] = "legacy"
+    # The workspace a platform request is scoped to, so the browser can tell when it changed.
+    workspace_id: str | None = None
 
 
 class RegisterRequest(BaseModel):

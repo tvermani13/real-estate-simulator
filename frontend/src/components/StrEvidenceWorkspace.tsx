@@ -30,7 +30,7 @@ function EvidenceForm({ label, value, onChange }: { label: string; value: GateEv
   </fieldset>;
 }
 
-export function StrEvidenceWorkspace({ deal, onDeal }: { deal: StrDeal; onDeal: (d: StrDeal) => void }) {
+export function StrEvidenceWorkspace({ deal, onDeal, signIn }: { deal: StrDeal; onDeal: (d: StrDeal) => void; signIn?: "legacy" | "platform" }) {
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [searches, setSearches] = useState<AcquisitionSearch[]>([]);
   const [selected, setSelected] = useState("");
@@ -154,7 +154,9 @@ export function StrEvidenceWorkspace({ deal, onDeal }: { deal: StrDeal; onDeal: 
         <label className="text-sm">Market / ZIP / address<input className="mt-1 w-full rounded border p-2" value={location} onChange={e => setLocation(e.target.value)} /></label>
         <label className="text-sm">Maximum acquisition price<input type="number" min="1" className="mt-1 w-full rounded border p-2" value={maxPrice} onChange={e => setMaxPrice(Number(e.target.value))} /></label>
       </div>
-      <label className="flex gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />Include in scheduled scans (requires an operator-installed schedule)</label>
+      {signIn === "platform"
+        ? <p className="text-sm text-slate-600">Scheduled scans are not available yet. Scan from this page instead.</p>
+        : <label className="flex gap-2 text-sm"><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />Include in scheduled scans (requires an operator-installed schedule)</label>}
       <div className="flex flex-wrap gap-2">
         <button disabled={busy} className="primary-button" onClick={() => void action(saveSearch)}>{selected ? "Update" : "Save"} search with current scenario assumptions</button>
         <button disabled={busy || !selected} className="rounded border p-2 text-sm" onClick={() => void action(async () => { setRun(await api.scanStrAcquisition(selected)); })}>Scan saved search now</button>

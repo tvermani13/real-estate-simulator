@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Response
@@ -10,7 +11,7 @@ from app.core.scope import Scope
 from app.routes.str_acquisition_models import AcquisitionRun, AcquisitionSearchCreate, AcquisitionSearchOut, PropertyEligibility
 from app.routes.str_forecast_models import ForecastProperty, ForecastResult, LicensedForecastExport
 from app.services.str_acquisitions import eligibility_for, scan_acquisitions
-from app.services.str_forecasts import get_str_forecast_provider, import_forecast, property_key, purge_expired_evidence, scenario_for_storage, snapshot_by_id
+from app.services.str_forecasts import get_str_forecast_provider, import_forecast, property_key, retire_expired_for_read, scenario_for_storage, snapshot_by_id
 
 router = APIRouter(prefix="/api/str", tags=["STR evidence and acquisitions"])
 
@@ -138,10 +139,10 @@ async def scan_search(search_id: str, principal: CurrentPrincipal) -> Acquisitio
 
 @router.get("/acquisitions/{search_id}/runs", response_model=list[AcquisitionRun])
 def list_runs(search_id: str, principal: CurrentPrincipal) -> list[AcquisitionRun]:
-    purge_expired_evidence()
+    retire_expired_for_read(principal.scope)
     where, params = principal.scope.match()
     with connection() as db:
         if not db.execute(f"SELECT id FROM str_acquisition_searches WHERE id=? AND {where}", (search_id, *params)).fetchone():
             raise HTTPException(404, "STR acquisition search not found")
-        rows = db.execute(f"SELECT result_json FROM str_acquisition_runs WHERE search_id=? AND {where} ORDER BY created_at DESC LIMIT 20", (search_id, *params)).fetchall()
+        rows = db.execute(f"SELECT result_json FROM str_acquisition_runs WHERE search_id=? AND {where} AND retention_until >= ? ORDER BY created_at DESC LIMIT 20", (search_id, *params, date.today().isoformat())).fetchall()
     return [AcquisitionRun.model_validate(json_loads(row["result_json"])) for row in rows]

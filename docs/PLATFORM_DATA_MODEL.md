@@ -1,6 +1,6 @@
 # Platform data model and scope seam (H1a)
 
-Status: the data model and the request seam are in place. **Platform sign-in is not wired yet** (H1b) and no behavior changed for existing accounts. This document records what was built, how it is proven, and what must be true before the native path is turned on.
+Status: the data model and the request seam are in place and, since H1b, platform sign-in is wired but **off by default** (`docs/PLATFORM_SIGN_IN.md`). No behavior changed for existing accounts. This document records what was built, how it is proven, and what must be true before the native path is turned on.
 
 Decisions come from platform ADR 0008, 0012 and its addendum. Review record: `docs/consultant-reviews/`.
 
@@ -55,4 +55,4 @@ For H1b acceptance: a release rehearsal on a representative v4 copy (verified pr
 
 ## Not in H1a
 
-The verified platform principal, the vendored adapter wheel, the `/api/auth/me` shape and frontend handling for platform people (H1b); linking a legacy account into the personal workspace, unlink and quarantine; jobs for platform people (P5).
+Linking a legacy account into the personal workspace, unlink and quarantine; jobs for platform people (P5).

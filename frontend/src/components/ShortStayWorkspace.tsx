@@ -30,7 +30,7 @@ const numericFields: [keyof StrDeal, string, boolean?][] = [
   ["refinance_fees", "Refinance fees"], ["comparable_count", "Self-reported comparable count"],
 ];
 
-export function ShortStayWorkspace() {
+export function ShortStayWorkspace({ signIn }: Readonly<{ signIn?: "legacy" | "platform" }>) {
   const [deal, setDeal] = useState<StrDeal>(base);
   const [result, setResult] = useState<StrResults | null>(null);
   const [saved, setSaved] = useState<StrScenario[]>([]);
@@ -115,6 +115,6 @@ export function ShortStayWorkspace() {
         {result && <Panel className="space-y-2 p-5"><h2 className="font-semibold">Evidence and limitations</h2>{result.warnings.map((warning, i) => <p className="text-sm text-slate-600" key={i}>{warning}</p>)}</Panel>}
       </div>
     </div>
-    <StrEvidenceWorkspace deal={deal} onDeal={setDeal} />
+    <StrEvidenceWorkspace deal={deal} onDeal={setDeal} signIn={signIn} />
   </main>;
 }
