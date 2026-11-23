@@ -5,11 +5,18 @@ import asyncio
 import logging
 
 from app.core.database import connection, init_database
+from app.core.scope import Scope
 from app.services.str_acquisitions import scan_acquisitions
 from app.services.str_forecasts import purge_expired_evidence
 
 
 async def run() -> int:
+    """Scan legacy accounts' enabled searches.
+
+    Platform-owned searches are never selected (the join to ``users`` excludes
+    them) and the API refuses to enable one until worker authorization exists
+    (platform P5).
+    """
     init_database()
     purge_expired_evidence()
     with connection() as db:
@@ -21,7 +28,7 @@ async def run() -> int:
     for row in rows:
         user = {key: row[key] for key in ("id", "name", "email", "created_at")}
         try:
-            result = await scan_acquisitions(row["search_id"], user)
+            result = await scan_acquisitions(row["search_id"], Scope.legacy(user["id"]))
             qualified = sum(c.rank is not None for c in result.candidates)
             print(f"{row['search_id']}: {result.status}, {len(result.candidates)} candidates, {qualified} qualified")
             failures += int(result.status != "completed")

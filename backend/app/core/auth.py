@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import secrets
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import uuid4
@@ -13,6 +14,7 @@ from fastapi import Cookie, Depends, Header, HTTPException, Response, status
 
 from app.core.config import settings
 from app.core.database import connection
+from app.core.scope import Scope
 
 
 SCRYPT_N = 2**14
@@ -157,3 +159,25 @@ def current_user(
 
 
 CurrentUser = Annotated[dict[str, str], Depends(current_user)]
+
+
+@dataclass(frozen=True)
+class Principal:
+    """The caller of a request: the scope its queries use and, for a legacy account, its profile."""
+
+    scope: Scope
+    user: dict[str, str] | None = None
+
+    @property
+    def display(self) -> dict[str, str]:
+        """What /auth/me returns. A platform person has no Hearthline name or email."""
+        if self.user is not None:
+            return self.user
+        return {"id": self.scope.owner_sub or "", "name": "Platform sign-in", "email": "", "created_at": ""}
+
+
+def current_principal(user: CurrentUser) -> Principal:
+    return Principal(scope=Scope.legacy(user["id"]), user=user)
+
+
+CurrentPrincipal = Annotated[Principal, Depends(current_principal)]

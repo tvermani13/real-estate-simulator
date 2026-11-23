@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Response
 
-from app.core.auth import CurrentUser, isoformat, utc_now
+from app.core.auth import CurrentPrincipal, isoformat, utc_now
 from app.core.database import connection, json_dumps, json_loads
 from app.engine.str_underwriting import analyze_str
 from app.routes.str_models import StrDeal, StrScenarioCreate, StrScenarioOut, StrUnderwriting
@@ -14,9 +14,9 @@ router = APIRouter(prefix="/api/str", tags=["short-term rentals"])
 
 
 @router.post("/underwrite", response_model=StrUnderwriting)
-def underwrite(deal: StrDeal, user: CurrentUser) -> StrUnderwriting:
+def underwrite(deal: StrDeal, principal: CurrentPrincipal) -> StrUnderwriting:
     if deal.forecast_snapshot_id:
-        result = snapshot_by_id(user["id"], deal.forecast_snapshot_id)
+        result = snapshot_by_id(principal.scope, deal.forecast_snapshot_id)
         if not result:
             raise HTTPException(404, "Forecast snapshot not found or retention expired")
         if not result.forecast or property_key(result.forecast.property.address) != property_key(deal.address):
@@ -39,64 +39,68 @@ def _row_to_scenario(row: object) -> StrScenarioOut:
 
 
 @router.get("/scenarios", response_model=list[StrScenarioOut])
-def list_scenarios(user: CurrentUser) -> list[StrScenarioOut]:
+def list_scenarios(principal: CurrentPrincipal) -> list[StrScenarioOut]:
+    where, params = principal.scope.match()
     with connection() as db:
         rows = db.execute(
-            "SELECT * FROM str_scenarios WHERE user_id = ? ORDER BY updated_at DESC",
-            (user["id"],),
+            f"SELECT * FROM str_scenarios WHERE {where} ORDER BY updated_at DESC", params
         ).fetchall()
     return [_row_to_scenario(row) for row in rows]
 
 
 @router.get("/scenarios/{scenario_id}", response_model=StrScenarioOut)
-def get_scenario(scenario_id: str, user: CurrentUser) -> StrScenarioOut:
+def get_scenario(scenario_id: str, principal: CurrentPrincipal) -> StrScenarioOut:
+    where, params = principal.scope.match()
     with connection() as db:
-        row = db.execute("SELECT * FROM str_scenarios WHERE id = ? AND user_id = ?", (scenario_id, user["id"])).fetchone()
+        row = db.execute(f"SELECT * FROM str_scenarios WHERE id = ? AND {where}", (scenario_id, *params)).fetchone()
     if row is None:
         raise HTTPException(404, "STR scenario not found")
     return _row_to_scenario(row)
 
 
 @router.post("/scenarios", response_model=StrScenarioOut, status_code=201)
-def save_scenario(request: StrScenarioCreate, user: CurrentUser) -> StrScenarioOut:
-    if request.deal.forecast_snapshot_id and not snapshot_by_id(user["id"], request.deal.forecast_snapshot_id):
+def save_scenario(request: StrScenarioCreate, principal: CurrentPrincipal) -> StrScenarioOut:
+    scope = principal.scope
+    if request.deal.forecast_snapshot_id and not snapshot_by_id(scope, request.deal.forecast_snapshot_id):
         raise HTTPException(404, "Forecast snapshot not found")
     request.deal = scenario_for_storage(request.deal)
     scenario_id, now = str(uuid4()), isoformat(utc_now())
+    columns, marks = ", ".join(scope.columns()), ", ".join("?" for _ in scope.columns())
     with connection() as db:
         db.execute(
-            """INSERT INTO str_scenarios
-               (id, user_id, name, deal_json, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (scenario_id, user["id"], request.name, json_dumps(request.deal.model_dump(mode="json")), now, now),
+            f"""INSERT INTO str_scenarios
+               (id, {columns}, name, deal_json, created_at, updated_at)
+               VALUES (?, {marks}, ?, ?, ?, ?)""",
+            (scenario_id, *scope.values(), request.name, json_dumps(request.deal.model_dump(mode="json")), now, now),
         )
     return StrScenarioOut(id=scenario_id, name=request.name, deal=request.deal, created_at=now, updated_at=now)
 
 
 @router.put("/scenarios/{scenario_id}", response_model=StrScenarioOut)
-def update_scenario(scenario_id: str, request: StrScenarioCreate, user: CurrentUser) -> StrScenarioOut:
-    if request.deal.forecast_snapshot_id and not snapshot_by_id(user["id"], request.deal.forecast_snapshot_id):
+def update_scenario(scenario_id: str, request: StrScenarioCreate, principal: CurrentPrincipal) -> StrScenarioOut:
+    scope = principal.scope
+    if request.deal.forecast_snapshot_id and not snapshot_by_id(scope, request.deal.forecast_snapshot_id):
         raise HTTPException(404, "Forecast snapshot not found")
     request.deal = scenario_for_storage(request.deal)
     now = isoformat(utc_now())
+    where, params = scope.match()
     with connection() as db:
         cursor = db.execute(
-            """UPDATE str_scenarios SET name = ?, deal_json = ?, updated_at = ?
-               WHERE id = ? AND user_id = ?""",
-            (request.name, json_dumps(request.deal.model_dump(mode="json")), now, scenario_id, user["id"]),
+            f"""UPDATE str_scenarios SET name = ?, deal_json = ?, updated_at = ?
+               WHERE id = ? AND {where}""",
+            (request.name, json_dumps(request.deal.model_dump(mode="json")), now, scenario_id, *params),
         )
         if not cursor.rowcount:
             raise HTTPException(status_code=404, detail="STR scenario not found")
-        row = db.execute("SELECT * FROM str_scenarios WHERE id = ? AND user_id = ?", (scenario_id, user["id"])).fetchone()
+        row = db.execute(f"SELECT * FROM str_scenarios WHERE id = ? AND {where}", (scenario_id, *params)).fetchone()
     return _row_to_scenario(row)
 
 
 @router.delete("/scenarios/{scenario_id}", status_code=204)
-def delete_scenario(scenario_id: str, user: CurrentUser) -> Response:
+def delete_scenario(scenario_id: str, principal: CurrentPrincipal) -> Response:
+    where, params = principal.scope.match()
     with connection() as db:
-        cursor = db.execute(
-            "DELETE FROM str_scenarios WHERE id = ? AND user_id = ?", (scenario_id, user["id"])
-        )
+        cursor = db.execute(f"DELETE FROM str_scenarios WHERE id = ? AND {where}", (scenario_id, *params))
         if not cursor.rowcount:
             raise HTTPException(status_code=404, detail="STR scenario not found")
     return Response(status_code=204)

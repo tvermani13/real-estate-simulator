@@ -422,10 +422,10 @@ class StrUpgradeTests(unittest.TestCase):
                 init_database()
                 init_database()
                 with connection() as db:
-                    self.assertEqual(db.execute("SELECT count(*) FROM schema_migrations").fetchone()[0], 4)
+                    self.assertEqual(db.execute("SELECT count(*) FROM schema_migrations").fetchone()[0], 5)
                     self.assertEqual(db.execute("SELECT name FROM saved_simulations").fetchone()[0], "SBLOC")
                     self.assertEqual(db.execute("SELECT name FROM saved_searches").fetchone()[0], "LTR")
-                    db.execute("INSERT INTO str_scenarios VALUES('s','u','STR','{}','now','now')")
+                    db.execute("INSERT INTO str_scenarios(id,user_id,name,deal_json,created_at,updated_at) VALUES('s','u','STR','{}','now','now')")
                     db.execute("DELETE FROM users WHERE id='u'")
                     self.assertEqual(db.execute("SELECT count(*) FROM str_scenarios").fetchone()[0], 0)
             finally:
