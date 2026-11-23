@@ -23,10 +23,10 @@ class DatabaseMaintenanceTests(unittest.TestCase):
 
     def test_migrations_are_idempotent(self) -> None:
         init_database()
-        self.assertEqual(database_readiness()["schema_version"], 4)
+        self.assertEqual(database_readiness()["schema_version"], 5)
         with connection() as db:
             count = db.execute("SELECT COUNT(*) AS count FROM schema_migrations").fetchone()
-        self.assertEqual(count["count"], 4)
+        self.assertEqual(count["count"], 5)
 
     def test_backup_verify_and_restore_round_trip(self) -> None:
         backups = Path(self.temporary_directory.name) / "backups"

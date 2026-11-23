@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from app.core.auth import isoformat, utc_now
 from app.core.config import settings
 from app.core.database import connection, json_dumps, json_loads
+from app.core.scope import Scope
 from app.engine.str_underwriting import analyze_str
 from app.routes.product_models import PropertyListing
 from app.routes.str_acquisition_models import AcquisitionCandidate, AcquisitionRun, AcquisitionSearchCreate, PropertyEligibility
@@ -18,10 +19,11 @@ from app.services.property_providers import PropertyProviderError, RentCastPrope
 from app.services.str_forecasts import ForecastCalendarConflict, apply_forecast, get_str_forecast_provider, property_key, purge_expired_evidence
 
 
-def eligibility_for(user_id: str, subject: ForecastProperty) -> PropertyEligibility:
+def eligibility_for(scope: Scope, subject: ForecastProperty) -> PropertyEligibility:
+    where, params = scope.match()
     with connection() as db:
-        row = db.execute("SELECT evidence_json FROM str_eligibility WHERE user_id=? AND property_key=?",
-                         (user_id, property_key(subject.address))).fetchone()
+        row = db.execute(f"SELECT evidence_json FROM str_eligibility WHERE {where} AND property_key=?",
+                         (*params, property_key(subject.address))).fetchone()
     if row:
         record = PropertyEligibility.model_validate(json_loads(row["evidence_json"]))
         if (record.property.property_type.casefold() == subject.property_type.casefold()
@@ -43,11 +45,12 @@ def _eligible_listing(listing: PropertyListing, search: AcquisitionSearchCreate)
             and (c.max_days_on_market is None or (listing.days_on_market is not None and listing.days_on_market <= c.max_days_on_market)))
 
 
-async def scan_acquisitions(search_id: str, user: dict[str, str]) -> AcquisitionRun:
+async def scan_acquisitions(search_id: str, scope: Scope) -> AcquisitionRun:
     purge_expired_evidence()
     token, now = str(uuid4()), utc_now()
+    where, params = scope.match()
     with connection() as db:
-        row = db.execute("SELECT * FROM str_acquisition_searches WHERE id=? AND user_id=?", (search_id, user["id"])).fetchone()
+        row = db.execute(f"SELECT * FROM str_acquisition_searches WHERE id=? AND {where}", (search_id, *params)).fetchone()
         if not row:
             raise HTTPException(404, "STR acquisition search not found")
         search = AcquisitionSearchCreate.model_validate(json_loads(row["request_json"]))
@@ -83,8 +86,8 @@ async def scan_acquisitions(search_id: str, user: dict[str, str]) -> Acquisition
                 subject = ForecastProperty(address=listing.address, property_type=listing.property_type,
                                            bedrooms=listing.bedrooms, bathrooms=listing.bathrooms,
                                            provider_property_id=listing.id)
-                eligibility = eligibility_for(user["id"], subject)
-                forecast = await get_str_forecast_provider().forecast(subject, user["id"])
+                eligibility = eligibility_for(scope, subject)
+                forecast = await get_str_forecast_provider().forecast(subject, scope)
                 legal = (eligibility.municipality.current_status(), eligibility.hoa.current_status())
                 candidate = AcquisitionCandidate(
                     listing=listing.model_copy(update={"estimated_rent": None, "rent_estimate_source": None}),
@@ -136,13 +139,14 @@ async def scan_acquisitions(search_id: str, user: dict[str, str]) -> Acquisition
             for rank, candidate in enumerate(qualified, 1):
                 candidate.rank = rank
             run.candidates.sort(key=lambda c: (c.rank is None, c.rank or 0, c.listing.address))
+        columns, marks = ",".join(scope.columns()), ",".join("?" for _ in scope.columns())
         with connection() as db:
             db.execute(
-                "INSERT INTO str_acquisition_runs(id,search_id,user_id,result_json,retention_until,created_at) VALUES(?,?,?,?,?,?)",
-                (run.id, search_id, user["id"], json_dumps(run.model_dump(mode="json")), retention.isoformat(), run.scanned_at),
+                f"INSERT INTO str_acquisition_runs(id,search_id,{columns},result_json,retention_until,created_at) VALUES(?,?,{marks},?,?,?)",
+                (run.id, search_id, *scope.values(), json_dumps(run.model_dump(mode="json")), retention.isoformat(), run.scanned_at),
             )
-            db.execute("UPDATE str_acquisition_searches SET last_scanned_at=? WHERE id=? AND user_id=?",
-                       (run.scanned_at, search_id, user["id"]))
+            db.execute(f"UPDATE str_acquisition_searches SET last_scanned_at=? WHERE id=? AND {where}",
+                       (run.scanned_at, search_id, *params))
         return run
     finally:
         with connection() as db:

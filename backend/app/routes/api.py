@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter
 
-from app.core.auth import CurrentUser
+from app.core.auth import CurrentPrincipal
 from app.core.config import settings
 from app.core.database import database_readiness
 from app.engine.fred import fetch_latest_observation
@@ -52,7 +52,7 @@ def _fallback_macro() -> dict:
 
 
 @router.get("/macro")
-async def macro(_user: CurrentUser) -> dict:
+async def macro(_principal: CurrentPrincipal) -> dict:
     """
     Macro indicators used in the UI banner.
     If FRED_API_KEY isn't set, returns reasonable placeholders.
@@ -96,7 +96,7 @@ async def macro(_user: CurrentUser) -> dict:
 
 
 @router.post("/scenario-a")
-def scenario_a(req: ScenarioARequest, _user: CurrentUser) -> ScenarioAResponse:
+def scenario_a(req: ScenarioARequest, _principal: CurrentPrincipal) -> ScenarioAResponse:
     r = estimate_gross_sale_for_net_cash(
         net_cash_needed=req.deal.down_payment_required,
         weighted_average_cost_basis_pct=req.portfolio.weighted_average_cost_basis_pct,
@@ -116,7 +116,7 @@ def scenario_a(req: ScenarioARequest, _user: CurrentUser) -> ScenarioAResponse:
 
 
 @router.post("/scenario-b")
-def scenario_b(req: ScenarioBRequest, _user: CurrentUser) -> ScenarioBResponse:
+def scenario_b(req: ScenarioBRequest, _principal: CurrentPrincipal) -> ScenarioBResponse:
     base = compute_sbloc_cashflow(
         loan_amount=req.loan_amount,
         sofr_rate=req.sofr_rate,
@@ -155,7 +155,7 @@ def scenario_b(req: ScenarioBRequest, _user: CurrentUser) -> ScenarioBResponse:
 
 
 @router.post("/risk")
-def risk(req: RiskRequest, _user: CurrentUser) -> RiskResponse:
+def risk(req: RiskRequest, _principal: CurrentPrincipal) -> RiskResponse:
     danger_value = req.loan_amount / req.maintenance_ltv_max if req.loan_amount > 0 else 0.0
     results: list[RiskHorizonResult] = []
     for horizon in req.horizons_months:

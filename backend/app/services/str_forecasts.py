@@ -10,6 +10,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from app.core.database import connection, json_dumps, json_loads
+from app.core.scope import Scope
 from app.routes.str_forecast_models import ForecastProperty, ForecastResult, LicensedForecastExport
 from app.routes.str_models import StrDeal
 
@@ -54,31 +55,34 @@ def assess_snapshot(row: sqlite3.Row, subject: ForecastProperty | None = None) -
                           imported_at=row["imported_at"], qualified_comparable_count=count, forecast=forecast)
 
 
-def import_forecast(user_id: str, forecast: LicensedForecastExport) -> ForecastResult:
+def import_forecast(scope: Scope, forecast: LicensedForecastExport) -> ForecastResult:
     if forecast.retention_until < date.today():
         return ForecastResult(status="license_expired", reason="Export retention permission has already expired; nothing stored.")
     purge_expired_evidence()
     payload = json_dumps(forecast.model_dump(mode="json"))
     digest = hashlib.sha256(payload.encode()).hexdigest()
     now = datetime.now(timezone.utc).isoformat()
+    columns, marks = ",".join(scope.columns()), ",".join("?" for _ in scope.columns())
+    where, params = scope.match()
     with connection() as db:
         db.execute(
-            """INSERT INTO str_forecast_snapshots
-               (id,user_id,property_key,content_hash,forecast_json,as_of,imported_at,retention_until)
-               VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(user_id,content_hash) DO NOTHING""",
-            (str(uuid4()), user_id, property_key(forecast.property.address), digest, payload,
+            f"""INSERT INTO str_forecast_snapshots
+               (id,{columns},property_key,content_hash,forecast_json,as_of,imported_at,retention_until)
+               VALUES (?,{marks},?,?,?,?,?,?) ON CONFLICT({scope.conflict_target("content_hash")}) DO NOTHING""",
+            (str(uuid4()), *scope.values(), property_key(forecast.property.address), digest, payload,
              forecast.as_of.isoformat(), now, forecast.retention_until.isoformat()),
         )
-        row = db.execute("SELECT * FROM str_forecast_snapshots WHERE user_id=? AND content_hash=?",
-                         (user_id, digest)).fetchone()
+        row = db.execute(f"SELECT * FROM str_forecast_snapshots WHERE {where} AND content_hash=?",
+                         (*params, digest)).fetchone()
     return assess_snapshot(row)
 
 
-def snapshot_by_id(user_id: str, snapshot_id: str) -> ForecastResult | None:
+def snapshot_by_id(scope: Scope, snapshot_id: str) -> ForecastResult | None:
     purge_expired_evidence()
+    where, params = scope.match()
     with connection() as db:
-        row = db.execute("SELECT * FROM str_forecast_snapshots WHERE id=? AND user_id=?",
-                         (snapshot_id, user_id)).fetchone()
+        row = db.execute(f"SELECT * FROM str_forecast_snapshots WHERE id=? AND {where}",
+                         (snapshot_id, *params)).fetchone()
     return assess_snapshot(row) if row else None
 
 
@@ -86,18 +90,19 @@ class StrForecastProvider(ABC):
     """Adapters return evidence or an explicit unavailable state; never market-average fallbacks."""
 
     @abstractmethod
-    async def forecast(self, subject: ForecastProperty, user_id: str) -> ForecastResult:
+    async def forecast(self, subject: ForecastProperty, scope: Scope) -> ForecastResult:
         raise NotImplementedError
 
 
 class LicensedExportForecastProvider(StrForecastProvider):
-    async def forecast(self, subject: ForecastProperty, user_id: str) -> ForecastResult:
+    async def forecast(self, subject: ForecastProperty, scope: Scope) -> ForecastResult:
         purge_expired_evidence()
+        where, params = scope.match()
         with connection() as db:
             row = db.execute(
-                """SELECT * FROM str_forecast_snapshots WHERE user_id=? AND property_key=?
+                f"""SELECT * FROM str_forecast_snapshots WHERE {where} AND property_key=?
                    ORDER BY as_of DESC, imported_at DESC, rowid DESC LIMIT 1""",
-                (user_id, property_key(subject.address)),
+                (*params, property_key(subject.address)),
             ).fetchone()
         return assess_snapshot(row, subject) if row else ForecastResult(
             status="unavailable", reason="No licensed property-specific export is available for this address."
