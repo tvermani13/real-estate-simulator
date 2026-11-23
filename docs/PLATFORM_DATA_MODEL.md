@@ -31,7 +31,7 @@ The background jobs build a legacy scope explicitly and select only rows that jo
 
 ## Proof
 
-- `backend/tests/test_engine_golden.py`: engine outputs (scenario A and B, risk, STR underwriting, affordability) are byte-identical to the outputs captured before the change.
+- `backend/tests/test_engine_golden.py`: engine outputs (scenario A and B, risk, STR underwriting, affordability) match the outputs captured before the change (exact structure, floats to one part in 1e9 because libm differs between platforms; the same inputs give identical bytes twice in one environment).
 - `backend/tests/test_platform_migration.py`: ids and checksums preserved, cascades kept, a failing rebuild rolls back, owner rules enforced, same-scope triggers, idempotence.
 - `backend/tests/test_platform_scope.py`: for every private record kind, the same subject in another workspace, another subject in the same workspace, a legacy account and guessed ids all see nothing and cannot change anything; legacy and platform worlds are disjoint both ways; platform scopes cannot enable alerts or scheduled scans; jobs skip native rows; a backup restored into an empty database keeps every row and scope.
 

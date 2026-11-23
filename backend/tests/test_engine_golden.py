@@ -11,6 +11,7 @@ platform change. Regenerate them only for a deliberate engine change:
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 import unittest
@@ -124,7 +125,23 @@ class EngineGoldenTests(unittest.TestCase):
             outputs[name] = response.text
         return outputs
 
-    def test_engine_outputs_are_byte_identical_to_the_recorded_ones(self) -> None:
+    def assert_same(self, actual: object, expected: object, where: str) -> None:
+        """Structure, strings and integers must match exactly. Floats may differ in the last
+        digits between platforms' math libraries, so they match to one part in 1e9."""
+        if isinstance(expected, float) and isinstance(actual, float):
+            self.assertTrue(math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-9), f"{where}: {actual} != {expected}")
+        elif isinstance(expected, dict) and isinstance(actual, dict):
+            self.assertEqual(sorted(actual), sorted(expected), where)
+            for key in expected:
+                self.assert_same(actual[key], expected[key], f"{where}.{key}")
+        elif isinstance(expected, list) and isinstance(actual, list):
+            self.assertEqual(len(actual), len(expected), where)
+            for index, (a, e) in enumerate(zip(actual, expected)):
+                self.assert_same(a, e, f"{where}[{index}]")
+        else:
+            self.assertEqual(actual, expected, where)
+
+    def test_engine_outputs_match_the_recorded_ones(self) -> None:
         outputs = self.run_cases()
         if os.environ.get("GOLDEN_UPDATE") == "1":
             GOLDEN.parent.mkdir(parents=True, exist_ok=True)
@@ -132,7 +149,7 @@ class EngineGoldenTests(unittest.TestCase):
         expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
         self.assertEqual(sorted(expected), sorted(outputs))
         for name in sorted(outputs):
-            self.assertEqual(outputs[name], expected[name], f"engine output changed for {name}")
+            self.assert_same(json.loads(outputs[name]), json.loads(expected[name]), name)
 
     def test_the_same_inputs_give_the_same_bytes_twice(self) -> None:
         first = self.run_cases()
