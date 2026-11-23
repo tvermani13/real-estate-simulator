@@ -14,7 +14,8 @@ RUN groupadd --gid 10001 hearthline \
     && chown hearthline:hearthline /data
 
 COPY requirements.lock ./
-RUN python -m pip install --requirement requirements.lock
+COPY vendor ./vendor
+RUN python vendor/verify_vendored.py && python -m pip install --requirement requirements.lock
 
 COPY --chown=hearthline:hearthline app ./app
 

@@ -58,7 +58,9 @@ export function AppHeader({
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden text-right md:block">
             <div className="max-w-36 truncate text-xs font-semibold text-slate-800">{user.name}</div>
-            <button className="text-[11px] text-slate-500 hover:text-slate-900" onClick={onLogout}>Sign out</button>
+            {user.sign_in === "platform"
+              ? <span className="text-[11px] text-slate-500">Signed in through your workspace</span>
+              : <button className="text-[11px] text-slate-500 hover:text-slate-900" onClick={onLogout}>Sign out</button>}
           </div>
           <span className="grid size-9 place-items-center rounded-full border border-[#b7c8bf] bg-[#e6efe9] text-xs font-bold text-[#12372a]">{initials}</span>
         </div>

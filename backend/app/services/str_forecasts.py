@@ -24,11 +24,23 @@ def property_key(address: str) -> str:
     return " ".join(address.casefold().split())
 
 
-def purge_expired_evidence(today: date | None = None) -> None:
+def purge_expired_evidence(today: date | None = None, scope: Scope | None = None) -> None:
+    """Physically delete licensed evidence past its retention date.
+
+    Without a platform scope (legacy requests and the scheduled jobs) this is database-wide, as before.
+    A platform scope only ever deletes its own rows, and a read never deletes anything for it: reads
+    filter expired evidence out instead (``retention_until >= today``)."""
     day = (today or date.today()).isoformat()
+    owner, params = ("AND " + scope.match()[0], scope.match()[1]) if scope is not None and scope.is_platform else ("", ())
     with connection() as db:
-        db.execute("DELETE FROM str_forecast_snapshots WHERE retention_until < ?", (day,))
-        db.execute("DELETE FROM str_acquisition_runs WHERE retention_until < ?", (day,))
+        db.execute(f"DELETE FROM str_forecast_snapshots WHERE retention_until < ? {owner}", (day, *params))
+        db.execute(f"DELETE FROM str_acquisition_runs WHERE retention_until < ? {owner}", (day, *params))
+
+
+def retire_expired_for_read(scope: Scope) -> None:
+    """Legacy reads keep their database-wide purge; a platform read mutates nothing."""
+    if not scope.is_platform:
+        purge_expired_evidence()
 
 
 def assess_snapshot(row: sqlite3.Row, subject: ForecastProperty | None = None) -> ForecastResult:
@@ -58,7 +70,7 @@ def assess_snapshot(row: sqlite3.Row, subject: ForecastProperty | None = None) -
 def import_forecast(scope: Scope, forecast: LicensedForecastExport) -> ForecastResult:
     if forecast.retention_until < date.today():
         return ForecastResult(status="license_expired", reason="Export retention permission has already expired; nothing stored.")
-    purge_expired_evidence()
+    purge_expired_evidence(scope=scope)
     payload = json_dumps(forecast.model_dump(mode="json"))
     digest = hashlib.sha256(payload.encode()).hexdigest()
     now = datetime.now(timezone.utc).isoformat()
@@ -78,11 +90,11 @@ def import_forecast(scope: Scope, forecast: LicensedForecastExport) -> ForecastR
 
 
 def snapshot_by_id(scope: Scope, snapshot_id: str) -> ForecastResult | None:
-    purge_expired_evidence()
+    retire_expired_for_read(scope)
     where, params = scope.match()
     with connection() as db:
-        row = db.execute(f"SELECT * FROM str_forecast_snapshots WHERE id=? AND {where}",
-                         (snapshot_id, *params)).fetchone()
+        row = db.execute(f"SELECT * FROM str_forecast_snapshots WHERE id=? AND {where} AND retention_until >= ?",
+                         (snapshot_id, *params, date.today().isoformat())).fetchone()
     return assess_snapshot(row) if row else None
 
 
@@ -96,13 +108,13 @@ class StrForecastProvider(ABC):
 
 class LicensedExportForecastProvider(StrForecastProvider):
     async def forecast(self, subject: ForecastProperty, scope: Scope) -> ForecastResult:
-        purge_expired_evidence()
+        retire_expired_for_read(scope)
         where, params = scope.match()
         with connection() as db:
             row = db.execute(
-                f"""SELECT * FROM str_forecast_snapshots WHERE {where} AND property_key=?
+                f"""SELECT * FROM str_forecast_snapshots WHERE {where} AND property_key=? AND retention_until >= ?
                    ORDER BY as_of DESC, imported_at DESC, rowid DESC LIMIT 1""",
-                (*params, property_key(subject.address)),
+                (*params, property_key(subject.address), date.today().isoformat()),
             ).fetchone()
         return assess_snapshot(row, subject) if row else ForecastResult(
             status="unavailable", reason="No licensed property-specific export is available for this address."

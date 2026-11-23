@@ -6,8 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from platform_context.fastapi import install_exception_handler
+
 from app.core.config import settings
 from app.core.database import init_database
+from app.core.platform import PlatformGuardMiddleware
 from app.core.rate_limit import InMemoryRateLimiter, RateLimitMiddleware
 from app.routes.api import router as api_router
 from app.routes.product import router as product_router
@@ -38,6 +41,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+install_exception_handler(app)
+
+# Outermost: wraps ServerErrorMiddleware too, so even an uncaught 500 to a platform request is not cacheable.
+_build_middleware_stack = app.build_middleware_stack
+app.build_middleware_stack = lambda: PlatformGuardMiddleware(_build_middleware_stack())
 
 app.include_router(api_router)
 app.include_router(product_router)

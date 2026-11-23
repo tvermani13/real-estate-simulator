@@ -46,7 +46,7 @@ def _eligible_listing(listing: PropertyListing, search: AcquisitionSearchCreate)
 
 
 async def scan_acquisitions(search_id: str, scope: Scope) -> AcquisitionRun:
-    purge_expired_evidence()
+    purge_expired_evidence(scope=scope)
     token, now = str(uuid4()), utc_now()
     where, params = scope.match()
     with connection() as db:

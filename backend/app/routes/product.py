@@ -10,6 +10,7 @@ from fastapi import APIRouter, Cookie, HTTPException, Response, status
 
 from app.core.auth import (
     CurrentPrincipal,
+    LegacyOnly,
     authenticate_user,
     create_session,
     create_user,
@@ -111,7 +112,7 @@ def _require_notifications_allowed(scope: Scope, req: SavedSearchCreate) -> None
         )
 
 
-@router.post("/auth/register", response_model=AuthResponse, status_code=201)
+@router.post("/auth/register", response_model=AuthResponse, status_code=201, dependencies=[LegacyOnly])
 def register(req: RegisterRequest, response: Response) -> AuthResponse:
     if not settings.registration_enabled:
         raise HTTPException(status_code=403, detail="Account registration is disabled")
@@ -121,7 +122,7 @@ def register(req: RegisterRequest, response: Response) -> AuthResponse:
     return AuthResponse(user=_user_out(user))
 
 
-@router.post("/auth/login", response_model=AuthResponse)
+@router.post("/auth/login", response_model=AuthResponse, dependencies=[LegacyOnly])
 def login(req: LoginRequest, response: Response) -> AuthResponse:
     user = authenticate_user(req.email, req.password)
     if user is None:
@@ -130,7 +131,7 @@ def login(req: LoginRequest, response: Response) -> AuthResponse:
     return AuthResponse(user=_user_out(user))
 
 
-@router.post("/auth/logout", status_code=204, response_class=Response)
+@router.post("/auth/logout", status_code=204, response_class=Response, dependencies=[LegacyOnly])
 def logout(
     response: Response,
     session_cookie: Annotated[str | None, Cookie(alias=settings.session_cookie_name)] = None,
@@ -142,7 +143,11 @@ def logout(
 
 @router.get("/auth/me", response_model=AuthResponse)
 def me(principal: CurrentPrincipal) -> AuthResponse:
-    return AuthResponse(user=_user_out(principal.display))
+    return AuthResponse(
+        user=_user_out(principal.display),
+        sign_in="legacy" if principal.user is not None else "platform",
+        workspace_id=principal.scope.workspace_id,
+    )
 
 
 @router.get("/profile", response_model=FinancialProfile)

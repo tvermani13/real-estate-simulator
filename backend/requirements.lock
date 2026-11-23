@@ -2,7 +2,9 @@ annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.14.2
 certifi==2026.6.17
+cffi==2.1.1
 click==8.4.2
+cryptography==50.0.2
 fastapi==0.139.2
 h11==0.16.0
 httpcore==1.0.9
@@ -10,8 +12,9 @@ httptools==0.8.0
 httpx==0.28.1
 idna==3.18
 numpy==2.4.6
-pydantic==2.13.4
+pycparser==3.12
 pydantic-settings==2.14.2
+pydantic==2.13.4
 pydantic_core==2.46.4
 python-dotenv==1.2.2
 PyYAML==6.0.3
@@ -22,3 +25,5 @@ uvicorn==0.51.0
 uvloop==0.22.1
 watchfiles==1.2.0
 websockets==16.1.1
+# Vendored platform adapter (platform ADR 0012, decision 9). Install from backend/ so the path resolves.
+./vendor/platform-context/platform_context-1.0.0-py3-none-any.whl

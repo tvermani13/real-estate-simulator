@@ -31,6 +31,23 @@ def verify_database(path: Path) -> None:
             raise RuntimeError("Database does not contain the schema_migrations table")
 
 
+def verify_integrity(path: Path) -> None:
+    """Foreign keys, and for a schema with platform owners, owner consistency, on a restore candidate."""
+    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+        db.execute("PRAGMA foreign_keys = ON")
+        if db.execute("PRAGMA foreign_key_check").fetchall():
+            raise RuntimeError("Backup has foreign-key violations")
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "str_acquisition_runs" in tables and "workspace_id" in {r[1] for r in db.execute("PRAGMA table_info(str_acquisition_runs)")}:
+            mismatched = db.execute(
+                """SELECT count(*) FROM str_acquisition_runs r LEFT JOIN str_acquisition_searches s ON s.id = r.search_id
+                   WHERE s.id IS NULL OR s.user_id IS NOT r.user_id OR s.workspace_id IS NOT r.workspace_id
+                      OR s.owner_sub IS NOT r.owner_sub"""
+            ).fetchone()[0]
+            if mismatched:
+                raise RuntimeError("Backup has acquisition runs owned differently from their search")
+
+
 def _exclude_licensed_data(db: sqlite3.Connection) -> None:
     """Backups preserve household data but cannot extend a provider's retention term."""
     # The copy must be a self-contained file before atomic rename, not rely on
@@ -67,6 +84,7 @@ def create_backup(output_dir: Path, retention: int = 14) -> Path:
             source.backup(target)
             _exclude_licensed_data(target)
         verify_database(temporary_path)
+        verify_integrity(temporary_path)
         os.replace(temporary_path, destination)
     finally:
         temporary_path.unlink(missing_ok=True)
@@ -107,6 +125,7 @@ def restore_backup(backup_path: Path, *, confirm_replace: bool) -> Path:
         with sqlite3.connect(backup_path) as source, sqlite3.connect(temporary_path) as restored:
             source.backup(restored)
         verify_database(temporary_path)
+        verify_integrity(temporary_path)  # checked on the candidate, before it replaces anything
         os.replace(temporary_path, target)
         target.with_name(f"{target.name}-wal").unlink(missing_ok=True)
         target.with_name(f"{target.name}-shm").unlink(missing_ok=True)

@@ -2,16 +2,24 @@ PYTHON ?= .venv/bin/python
 COMPOSE_ENV ?= $(if $(wildcard infra/.env),infra/.env,infra/.env.example)
 COMPOSE := docker compose --env-file $(COMPOSE_ENV) -f infra/docker-compose.yml
 
-.PHONY: bootstrap test lint typecheck build audit verify compose-config compose-build stack-up stack-down stack-logs smoke backup scan scan-str
+.PHONY: smoke-platform upgrade-rehearsal bootstrap test lint typecheck build audit verify compose-config compose-build stack-up stack-down stack-logs smoke backup scan scan-str
 
 bootstrap:
 	python3 -m venv .venv
 	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install --requirement backend/requirements.lock
+	python3 backend/vendor/verify_vendored.py
+	cd backend && ../$(PYTHON) -m pip install --requirement requirements.lock
 	cd frontend && npm ci --no-audit
 
 test:
 	PYTHONPATH=backend $(PYTHON) -m unittest discover -s backend/tests -v
+
+smoke-platform:
+	$(PYTHON) scripts/smoke_platform.py
+
+upgrade-rehearsal:
+	@test -n "$(SOURCE)" || (echo 'usage: make upgrade-rehearsal SOURCE=/path/to/copy-of-live.db' && exit 2)
+	cd backend && PYTHONPATH=. ../$(PYTHON) -m app.jobs.upgrade_rehearsal --source $(SOURCE)
 
 lint:
 	cd frontend && npm run lint
@@ -28,7 +36,7 @@ audit:
 compose-config:
 	$(COMPOSE) --profile jobs config --quiet
 
-verify: test lint typecheck build audit compose-config
+verify: test smoke-platform lint typecheck build audit compose-config
 	$(PYTHON) -m pip check
 
 compose-build:

@@ -120,12 +120,36 @@ export default function Home() {
 
   useEffect(() => {
     api.me()
-      .then((result) => setSessionUser(result.user))
+      .then((result) => setSessionUser({ ...result.user, sign_in: result.sign_in ?? "legacy", workspace_id: result.workspace_id ?? null }))
       .catch((caught: unknown) => {
         if (caught instanceof ApiError && caught.status === 401) setSessionUser(null);
         else setSessionUser(null);
       });
   }, []);
+
+  // A platform person can switch workspace elsewhere in the portal. Coming back to this page (tab or window focus, or
+  // back/forward) re-checks who and which workspace this is, and reloads so no stale private data or form survives.
+  useEffect(() => {
+    if (sessionUser?.sign_in !== "platform") return;
+    const known = `${sessionUser.id}/${sessionUser.workspace_id ?? ""}`;
+    function recheck() {
+      api.me()
+        .then((result) => {
+          if (`${result.user.id}/${result.workspace_id ?? ""}` !== known) window.location.reload();
+        })
+        .catch(() => window.location.reload());
+    }
+    function onVisible() { if (document.visibilityState === "visible") recheck(); }
+    function onPageShow(event: PageTransitionEvent) { if (event.persisted) recheck(); }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", recheck);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", recheck);
+    };
+  }, [sessionUser]);
 
   useEffect(() => {
     if (!sessionUser) return;
@@ -303,7 +327,7 @@ export default function Home() {
   if (sessionUser === null) return <AuthScreen onAuthenticated={setSessionUser} />;
   if (workspace === "overview") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><OverviewWorkspace onNavigate={setWorkspace} /></div>;
   if (workspace === "profile") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><ProfileWorkspace /></div>;
-  if (workspace === "str") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><ShortStayWorkspace /></div>;
+  if (workspace === "str") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><ShortStayWorkspace signIn={sessionUser.sign_in} /></div>;
   if (workspace === "discover") return <div className="min-h-screen bg-[#f7f8f5]"><AppHeader user={sessionUser} active={workspace} onNavigate={setWorkspace} onLogout={() => void logout()} /><DiscoverWorkspace user={sessionUser} /></div>;
 
   return (

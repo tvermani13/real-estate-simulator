@@ -79,8 +79,8 @@ export function DiscoverWorkspace({ user }: Readonly<{ user: User }>) {
       const created = await api.createSearch({
         name,
         criteria,
-        notifications_enabled: notifications,
-        notification_email: notifications ? user.email : null,
+        notifications_enabled: notifications && user.sign_in !== "platform",
+        notification_email: notifications && user.sign_in !== "platform" ? user.email : null,
       });
       setSearches((current) => [created, ...current]);
       setSelectedId(created.id);
@@ -192,10 +192,14 @@ export function DiscoverWorkspace({ user }: Readonly<{ user: User }>) {
               ) : null}
             </div>
             <div className="flex flex-col justify-between gap-4 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center">
-              <label className="flex items-start gap-3 text-xs text-slate-600">
-                <input className="mt-0.5 size-4 accent-[#2d6a4f]" type="checkbox" checked={notifications} onChange={(event) => setNotifications(event.target.checked)} />
-                <span><strong className="block text-slate-800">Notify me about new matches</strong>Send to {user.email} when email delivery is configured.</span>
-              </label>
+              {user.sign_in === "platform" ? (
+                <p className="text-xs text-slate-600"><strong className="block text-slate-800">Email alerts are not available yet</strong>Run a scan from this page to see new matches.</p>
+              ) : (
+                <label className="flex items-start gap-3 text-xs text-slate-600">
+                  <input className="mt-0.5 size-4 accent-[#2d6a4f]" type="checkbox" checked={notifications} onChange={(event) => setNotifications(event.target.checked)} />
+                  <span><strong className="block text-slate-800">Notify me about new matches</strong>Send to {user.email} when email delivery is configured.</span>
+                </label>
+              )}
               <button className="primary-button">Save scan</button>
             </div>
           </form>
